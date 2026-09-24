@@ -59,22 +59,23 @@ Every run is saved with whatever stage it has reached, listed on the user's **Hi
   DECISIONS.md          — log of decisions and why they were made
 ```
 
-(`/frontend` and `/backend` don't exist yet — they're created in steps 2 and 3 of the build plan below.)
+(`/frontend` exists as of step 2, on sample data only. `/backend` doesn't exist yet — it's created in step 3.)
 
 ## 5. How to run and test each part
 
-Nothing runs yet — this is step 1 (docs only). Once later steps add code, this section will be kept up to date with the exact commands. In general, expect:
-
-- `/frontend`: a standard Next.js app — install once, then a local dev-server command, viewed in a browser.
-- `/backend`: a standard Express app — install once, then a local dev-server command, called by the frontend or tested directly.
-- Both parts will support running in **TEST_MODE**, so the whole flow can be tried end-to-end with zero AI cost before ever calling a real AI model.
+- `/frontend`: a standard Next.js app.
+  - Install once: `npm install` (run from inside `/frontend`).
+  - Run locally: `npm run dev`, then open `http://localhost:3000`.
+  - Check for mistakes before shipping: `npm run lint` and `npm run build`.
+  - With no `NEXT_PUBLIC_API_URL` set (the default — see `/frontend/.env.example`), every screen runs entirely on realistic sample data with a "SAMPLE DATA" badge, since there's no backend yet. Nothing needs to be installed or running beyond the frontend itself.
+- `/backend`: doesn't exist yet (step 3). Once it does, this section will be kept up to date with its own install/run/test commands, and both parts will support running in **TEST_MODE**, so the whole flow can be tried end-to-end with zero AI cost before ever calling a real AI model.
 
 ## 6. The 7-step build plan
 
 | Step | What it delivers | Status |
 |---|---|---|
-| 1 | AGENTS.md and architecture docs | ✅ Done (this commit) |
-| 2 | Frontend with every screen on sample data, deployed to Vercel | ⬜ Not started |
+| 1 | AGENTS.md and architecture docs | ✅ Done |
+| 2 | Frontend with every screen on sample data, deployed to Vercel | 🟨 Frontend built and tested locally on sample data; not yet deployed to Vercel |
 | 3 | Backend, test mode, cost tracking, and the Story stage | ⬜ Not started |
 | 4 | Direction, Look and Storyboard stages | ⬜ Not started |
 | 5 | Pack and Approve stages, Supabase (database, storage, accounts, Brand kit), Telegram sending | ⬜ Not started |

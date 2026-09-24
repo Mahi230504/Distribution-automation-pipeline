@@ -1,0 +1,70 @@
+@import "tailwindcss";
+
+:root {
+  --background: #0b0c0f;
+  --surface: #14161b;
+  --surface-raised: #1b1e25;
+  --border: #262a33;
+  --foreground: #e8e9ec;
+  --muted: #979ba6;
+  --accent: #8b7cf6;
+  --accent-strong: #a596ff;
+  --accent-foreground: #0b0c0f;
+  --success: #34d399;
+  --warning: #f5b843;
+  --danger: #f2726c;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-foreground: var(--foreground);
+  --color-muted: var(--muted);
+  --color-accent: var(--accent);
+  --color-accent-strong: var(--accent-strong);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), Arial, Helvetica, sans-serif;
+}
+
+* {
+  border-color: var(--border);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--accent-foreground);
+}
+
+input,
+textarea,
+select {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--muted);
+}
+
+/* Small utility for the elapsed-seconds spinner used in loading states. */
+@keyframes spin-slow {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.animate-spin-slow {
+  animation: spin-slow 1s linear infinite;
+}
