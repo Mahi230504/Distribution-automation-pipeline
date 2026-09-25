@@ -2,6 +2,8 @@ import { randomUUID } from "node:crypto";
 import type { Run, GenerationKind } from "../../frontend/lib/types.js";
 import { storage } from "./storage.js";
 import { safeError } from "./settings.js";
+import { requireBrief, assertVersion } from "./brief.js";
+import { reviseScript } from "./script-feedback.js";
 import { research, rewrite } from "./story.js";
 import {
   runGeneration,
@@ -46,12 +48,13 @@ async function execute(id: string) {
       r.job!.status = "running";
     });
     const r = await storage.getRun(id);
-    if (!["story", "rewrite"].includes(r.job!.kind)) {
+    if (!["story", "rewrite", "script-revision"].includes(r.job!.kind)) {
       await runGeneration(id);
       return;
     }
     if (r.job!.checkpoint !== "scripted") {
-      if (r.job!.kind === "story") await research(id);
+      if (r.job!.kind === "script-revision") await reviseScript(id);
+      else if (r.job!.kind === "story") await research(id);
       else await rewrite(id);
     }
     await storage.updateRun(id, (r) => {
@@ -65,6 +68,11 @@ async function execute(id: string) {
       r.job!.status = "failed";
       r.job!.error = safeError(e);
       r.job!.message = "Job failed";
+      const f = r.feedbackHistory?.find((f) => f.id === r.job?.feedbackId);
+      if (f && f.status !== "needs_research") {
+        f.status = "failed";
+        f.error = safeError(e);
+      }
       if (r.generation) activity(r, r.job!.checkpoint, safeError(e), "failed");
     });
   }
@@ -76,9 +84,14 @@ export async function startJob(
   resume = false,
 ) {
   const current = await storage.getRun(id);
-  if (resume && current.job && !["story", "rewrite"].includes(current.job.kind))
+  if (
+    resume &&
+    current.job &&
+    !["story", "rewrite", "script-revision"].includes(current.job.kind)
+  )
     return resumeGeneration(id);
   const run = await storage.updateRun(id, (r) => {
+    requireBrief(r);
     if (isBusy(r)) throw new Error("A job is already running for this run.");
     if (resume) {
       if (!r.job || r.jobStatus !== "interrupted")
@@ -87,10 +100,6 @@ export async function startJob(
     } else {
       if (!["brief", "story"].includes(r.currentStage))
         throw new Error("Story changes are locked after approving Story.");
-      if (kind === "story" && r.script) {
-        (r.scriptVersions ??= []).push(r.script);
-        r.script = null;
-      }
       r.job = {
         id: randomUUID(),
         kind,
@@ -120,15 +129,19 @@ export async function startGeneration(
   id: string,
   kind: GenerationKind,
   input: {
+    force?: boolean;
+    expectedPromptId?: string;
+    scriptVersion?: number;
+    briefRevision?: number;
     directionId?: string;
     note?: string;
     quoteId?: string;
     frameId?: string;
   } = {},
 ) {
-  const brand = await storage.getBrandKit();
   let started = false;
   const run = await storage.updateRun(id, (r) => {
+    requireBrief(r);
     const g = ensureGeneration(r);
     // Replays return the saved job/output, even after completion. No second schedule.
     if (
@@ -150,14 +163,27 @@ export async function startGeneration(
         !r.script.beats.length ||
         (!r.brief.pastedScript &&
           !legacyApprovedStory &&
-          (r.currentStage !== "story" || r.jobStatus !== "needs_review"))
+          (r.currentStage !== "story" ||
+            (r.jobStatus !== "needs_review" &&
+              !(
+                r.jobStatus === "failed" && r.job?.kind === "script-revision"
+              ))))
       )
         throw new Error("Complete and approve Story first.");
       if (g.directionsReady) return;
-      g.storyApproved = true;
-      r.brandKit = brand;
+      assertVersion(r, input.scriptVersion, input.briefRevision);
+      // Approval is saved only after the fidelity checkpoint succeeds.
+      g.storyApproved = false;
       r.currentStage = "direction";
     } else if (kind === "prompt") {
+      assertVersion(
+        r,
+        r.storyApproval?.scriptVersion,
+        r.storyApproval?.briefRevision,
+      );
+      if (input.expectedPromptId && g.activePromptId !== input.expectedPromptId)
+        throw new Error("Prompt changed. Refresh first.");
+      if (input.force) (g.promptFeedback ??= []).push(input.note ?? "");
       if (
         !g.storyApproved ||
         !g.directionsReady ||
@@ -167,14 +193,15 @@ export async function startGeneration(
       if (
         r.selectedDirectionId === input.directionId &&
         r.directionNote === note &&
-        g.activePromptId
+        g.activePromptId &&
+        !input.force
       )
         return;
       g.revision++;
       delete g.activePromptId;
       invalidateLook(r);
       r.selectedDirectionId = input.directionId!;
-      r.directionNote = note;
+      if (!input.force) r.directionNote = note;
       r.videoPrompt = null;
       r.currentStage = "direction";
     } else {
@@ -213,7 +240,12 @@ export async function startGeneration(
               "Repair and rescore only if needed",
             ]
           : kind.startsWith("key")
-            ? ["Generate key frame", "Save image for Look approval"]
+            ? [
+                "Generate key frame",
+                "Review actual pixels against the brief",
+                "Repair only within confirmed allowance",
+                "Save reviewed image for Look approval",
+              ]
             : kind === "board"
               ? ["Map all beats", "Generate and review each remaining frame"]
               : ["Regenerate selected frame", "Review replacement"];
@@ -231,6 +263,7 @@ export async function resumeGeneration(id: string, quoteId?: string) {
   )
     return existing;
   const run = await storage.updateRun(id, (r) => {
+    requireBrief(r);
     if (!r.job || !["interrupted", "failed"].includes(r.jobStatus))
       throw new Error(
         "Only interrupted or failed generation jobs can be resumed.",

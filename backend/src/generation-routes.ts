@@ -1,3 +1,4 @@
+import { mode, requireBrief, assertVersion } from "./brief.js";
 import { Router } from "express";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
@@ -26,19 +27,27 @@ generationRouter.get("/api/images/:assetId", async (req, res) => {
     .send(data);
 });
 generationRouter.post("/api/runs/:id/directions", async (req, res) =>
-  res.status(202).json(await startGeneration(runId(req.params), "directions")),
+  res
+    .status(202)
+    .json(
+      await startGeneration(
+        runId(req.params),
+        "directions",
+        z
+          .object({ scriptVersion: z.number(), briefRevision: z.number() })
+          .parse(req.body),
+      ),
+    ),
 );
 generationRouter.post(
   "/api/runs/:id/directions/:directionId/select",
   async (req, res) =>
-    res
-      .status(202)
-      .json(
-        await startGeneration(runId(req.params), "prompt", {
-          directionId: String(req.params.directionId),
-          note: note.parse(req.body?.note),
-        }),
-      ),
+    res.status(202).json(
+      await startGeneration(runId(req.params), "prompt", {
+        directionId: String(req.params.directionId),
+        note: note.parse(req.body?.note),
+      }),
+    ),
 );
 generationRouter.post("/api/runs/:id/image-quotes", async (req, res) => {
   const body = z
@@ -72,14 +81,12 @@ for (const [suffix, kind] of [
       res.status(202).json(await resumeGeneration(run.id, quoteId));
       return;
     }
-    res
-      .status(202)
-      .json(
-        await startGeneration(runId(req.params), kind, {
-          quoteId,
-          frameId: (req.params as Record<string, string>).frameId,
-        }),
-      );
+    res.status(202).json(
+      await startGeneration(runId(req.params), kind, {
+        quoteId,
+        frameId: (req.params as Record<string, string>).frameId,
+      }),
+    );
   });
 }
 generationRouter.post("/api/runs/:id/key-frame/upload", async (req, res) => {
@@ -118,6 +125,7 @@ generationRouter.post("/api/runs/:id/key-frame/upload", async (req, res) => {
         note: "User supplied reference",
         origin: "user" as const,
         source: "uploaded" as const,
+        mode: mode(),
         callIds: [],
         createdAt: new Date().toISOString(),
       };
@@ -140,9 +148,19 @@ generationRouter.post("/api/runs/:id/key-frame/approve", async (req, res) => {
     await storage.updateRun(runId(req.params), (r) => {
       if (isBusy(r) || r.jobStatus === "interrupted")
         throw new Error("Wait for the current job.");
+      requireBrief(r);
+      assertVersion(
+        r,
+        r.storyApproval?.scriptVersion,
+        r.storyApproval?.briefRevision,
+      );
       const g = ensureGeneration(r),
         key = g.keys.find((k) => k.id === keyId && k.id === g.activeKeyId);
       if (!key) throw new Error("Approve the current key frame.");
+      if (key.source === "generated" && !key.review?.passed)
+        throw new Error(
+          "Key frame has not passed subject and quality review. Change it or upload a finished reference.",
+        );
       key.approval = "approved";
       g.approvedKeyId = key.id;
       r.currentStage = "storyboard";
@@ -184,6 +202,22 @@ generationRouter.post("/api/runs/:id/storyboard/approve", async (req, res) =>
         !g.approvedKeyId
       )
         throw new Error("Finish the Storyboard before approving it.");
+      requireBrief(r);
+      assertVersion(
+        r,
+        r.storyApproval?.scriptVersion,
+        r.storyApproval?.briefRevision,
+      );
+      if (
+        g.board.some(
+          (f) =>
+            f.attempts.find((a) => a.id === f.selectedAttemptId)?.review
+              ?.criticalFailures?.length,
+        )
+      )
+        throw new Error(
+          "Resolve critical subject or factual failures before approving the Storyboard.",
+        );
       g.boardApprovedAt = new Date().toISOString();
       r.currentStage = "storyboard";
       r.jobStatus = "completed";

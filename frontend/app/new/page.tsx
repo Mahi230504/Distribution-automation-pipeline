@@ -3,15 +3,33 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createRun, getBrandKit } from "@/lib/api";
-import { AspectRatio, BrandKit, NewRunInput, Platform, PLATFORM_LABELS } from "@/lib/types";
+import {
+  AspectRatio,
+  BrandKit,
+  NewRunInput,
+  Platform,
+  PLATFORM_LABELS,
+} from "@/lib/types";
 import { countWords } from "@/lib/format";
 import ErrorBanner from "@/components/ErrorBanner";
 
-const ALL_PLATFORMS: Platform[] = ["instagram_reels", "youtube_shorts", "linkedin"];
+const ALL_PLATFORMS: Platform[] = [
+  "instagram_reels",
+  "youtube_shorts",
+  "linkedin",
+];
 const inputClass =
   "rounded-lg border border-border bg-surface px-3 py-2 text-sm outline-none focus:border-accent";
 
-function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+function Field({
+  label,
+  hint,
+  children,
+}: {
+  label: string;
+  hint?: string;
+  children: React.ReactNode;
+}) {
   return (
     <label className="flex flex-col gap-1.5">
       <span className="text-sm font-medium">{label}</span>
@@ -28,6 +46,24 @@ export default function NewRunPage() {
   const [tab, setTab] = useState<"topic" | "script">("topic");
   const [brandKit, setBrandKit] = useState<BrandKit | null>(null);
 
+  const [objective, setObjective] = useState<
+    "promote" | "explain" | "demonstrate" | "tell a story"
+  >("promote");
+  const [productDetails, setProductDetails] = useState("");
+  const [visualPreferences, setVisualPreferences] = useState("");
+  const [summary, setSummary] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  const [brandSelection, setBrandSelection] = useState<
+    "none" | "saved" | "custom"
+  >("none");
+  const [customBrand, setCustomBrand] = useState({
+    brandName: "",
+    palette: [] as string[],
+    characterDescription: "",
+    tone: "",
+    constraints: "",
+    preferredPlatforms: [] as Platform[],
+  });
   const [topic, setTopic] = useState("");
   const [audience, setAudience] = useState("");
   const [platform, setPlatform] = useState<Platform>("instagram_reels");
@@ -46,11 +82,8 @@ export default function NewRunPage() {
     getBrandKit()
       .then((kit) => {
         setBrandKit(kit);
-        if (kit.preferredPlatforms.length > 0) setPlatform(kit.preferredPlatforms[0]);
       })
-      .catch(() => {
-        // Brand kit is a convenience pre-fill; a failure here shouldn't block starting a run.
-      });
+      .catch((e) => setSubmitError(e.message));
   }, []);
 
   function handleFile(file: File) {
@@ -61,10 +94,35 @@ export default function NewRunPage() {
 
   function validate(): boolean {
     const next: Record<string, string> = {};
+    if (!confirmed || summary.trim().length < 10)
+      next.interpretation =
+        "Confirm the content interpretation before starting.";
+    if (
+      brandSelection !== "none" &&
+      /clothing|shoe|fashion|sneaker/i.test(topic) &&
+      /coffee|barista/i.test(
+        JSON.stringify(brandSelection === "saved" ? brandKit : customBrand),
+      )
+    )
+      next.interpretation =
+        "This coffee Brand kit conflicts with your brief. Choose no kit or edit the run copy.";
+    if (
+      tab === "topic" &&
+      objective === "promote" &&
+      /^(clothing|shoe|fashion|apparel|footwear)( brand)?$/i.test(
+        topic.trim(),
+      ) &&
+      !productDetails.trim()
+    )
+      next.interpretation =
+        "Specify which product to show in Product details before starting.";
     if (!topic.trim()) next.topic = "Give this run a topic.";
-    if (durationSeconds < 15 || durationSeconds > 60) next.durationSeconds = "Duration must be between 15 and 60 seconds.";
-    if (tab === "script" && countWords(pastedScript) < 5) next.pastedScript = "Paste or upload a script first.";
-    if (!targetVideoModel.trim()) next.targetVideoModel = "Choose a target video model.";
+    if (durationSeconds < 15 || durationSeconds > 60)
+      next.durationSeconds = "Duration must be between 15 and 60 seconds.";
+    if (tab === "script" && countWords(pastedScript) < 5)
+      next.pastedScript = "Paste or upload a script first.";
+    if (!targetVideoModel.trim())
+      next.targetVideoModel = "Choose a target video model.";
     setErrors(next);
     return Object.keys(next).length === 0;
   }
@@ -74,6 +132,17 @@ export default function NewRunPage() {
     setSubmitting(true);
     setSubmitError(null);
     const input: NewRunInput = {
+      interpretation: {
+        subject: topic.trim(),
+        objective,
+        productDetails,
+        visualPreferences,
+        factualConstraints: "No unsupported brand-specific claims",
+        summary,
+        confirmed,
+      },
+      brandSelection,
+      ...(brandSelection === "custom" ? { brandKit: customBrand } : {}),
       topic: topic.trim(),
       audience: audience.trim(),
       platform,
@@ -91,7 +160,9 @@ export default function NewRunPage() {
       const run = await createRun(input);
       router.push(`/runs/${run.id}`);
     } catch (err) {
-      setSubmitError(err instanceof Error ? err.message : "Could not start this run.");
+      setSubmitError(
+        err instanceof Error ? err.message : "Could not start this run.",
+      );
       setSubmitting(false);
     }
   }
@@ -100,7 +171,9 @@ export default function NewRunPage() {
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">New run</h1>
-        <p className="mt-1 text-sm text-muted">Tell VPO Studio what you want, or bring your own script.</p>
+        <p className="mt-1 text-sm text-muted">
+          Tell VPO Studio what you want, or bring your own script.
+        </p>
       </div>
 
       <div className="flex gap-1 rounded-lg border border-border bg-surface p-1 sm:w-fit">
@@ -114,7 +187,9 @@ export default function NewRunPage() {
             key={t.key}
             onClick={() => setTab(t.key)}
             className={`flex-1 rounded-md px-4 py-2 text-sm font-medium transition-colors sm:flex-none ${
-              tab === t.key ? "bg-surface-raised text-foreground" : "text-muted hover:text-foreground"
+              tab === t.key
+                ? "bg-surface-raised text-foreground"
+                : "text-muted hover:text-foreground"
             }`}
           >
             {t.label}
@@ -125,10 +200,83 @@ export default function NewRunPage() {
       {submitError && <ErrorBanner message={submitError} />}
 
       <div className="flex flex-col gap-6 rounded-2xl border border-border bg-surface p-5 sm:p-6">
-        {brandKit && (
-          <div className="rounded-lg border border-accent/20 bg-accent/10 px-3 py-2 text-xs text-accent-strong">
-            Applying your <strong>{brandKit.brandName}</strong> Brand kit — palette, character and tone will
-            carry through automatically.
+        <Field label="What should this content achieve?">
+          <select
+            value={objective}
+            onChange={(e) => {
+              setObjective(e.target.value as typeof objective);
+              setConfirmed(false);
+            }}
+            className={inputClass}
+          >
+            {["promote", "explain", "demonstrate", "tell a story"].map((v) => (
+              <option key={v}>{v}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Brand kit for this run">
+          <select
+            value={brandSelection}
+            onChange={(e) => {
+              setBrandSelection(e.target.value as typeof brandSelection);
+              if (e.target.value === "custom" && brandKit)
+                setCustomBrand(brandKit);
+              setConfirmed(false);
+            }}
+            className={inputClass}
+          >
+            <option value="none">Continue without a Brand kit</option>
+            <option value="saved">
+              {brandKit?.origin === "demo"
+                ? "Demo preset"
+                : brandKit?.origin === "legacy"
+                  ? "Previously stored kit (origin unknown)"
+                  : "User-saved kit"}
+              : {brandKit?.brandName || "No saved brand"}
+            </option>
+            <option value="custom">Edit a run-specific copy</option>
+          </select>
+        </Field>
+        {brandSelection === "saved" && (
+          <p className="text-sm">
+            {brandKit?.brandName} · {brandKit?.characterDescription}
+          </p>
+        )}
+        {brandSelection === "custom" && (
+          <div className="grid gap-3">
+            {(
+              [
+                "brandName",
+                "characterDescription",
+                "tone",
+                "constraints",
+              ] as const
+            ).map((k) => (
+              <Field key={k} label={k}>
+                <input
+                  value={customBrand[k]}
+                  onChange={(e) =>
+                    setCustomBrand({ ...customBrand, [k]: e.target.value })
+                  }
+                  className={inputClass}
+                />
+              </Field>
+            ))}
+            <Field label="Palette (comma separated)">
+              <input
+                value={customBrand.palette.join(",")}
+                onChange={(e) =>
+                  setCustomBrand({
+                    ...customBrand,
+                    palette: e.target.value.split(",").filter(Boolean),
+                  })
+                }
+                className={inputClass}
+              />
+            </Field>
+            <p className="text-xs">
+              This does not change the global Brand kit.
+            </p>
           </div>
         )}
 
@@ -137,30 +285,46 @@ export default function NewRunPage() {
             <input
               className={inputClass}
               value={topic}
-              onChange={(e) => setTopic(e.target.value)}
-              placeholder="e.g. why our oat milk latte is different"
+              onChange={(e) => {
+                setTopic(e.target.value);
+                setConfirmed(false);
+              }}
+              placeholder="e.g. a clothing collection launch"
             />
-            {errors.topic && <span className="text-xs text-danger">{errors.topic}</span>}
+            {errors.topic && (
+              <span className="text-xs text-danger">{errors.topic}</span>
+            )}
           </Field>
         )}
 
         {tab === "script" && (
           <>
-            <Field label="Topic" hint="A short label for this run, shown in History.">
+            <Field
+              label="Topic"
+              hint="A short label for this run, shown in History."
+            >
               <input
                 className={inputClass}
                 value={topic}
-                onChange={(e) => setTopic(e.target.value)}
-                placeholder="e.g. why our oat milk latte is different"
+                onChange={(e) => {
+                  setTopic(e.target.value);
+                  setConfirmed(false);
+                }}
+                placeholder="e.g. a clothing collection launch"
               />
-              {errors.topic && <span className="text-xs text-danger">{errors.topic}</span>}
+              {errors.topic && (
+                <span className="text-xs text-danger">{errors.topic}</span>
+              )}
             </Field>
-            <Field label="Your script" hint="Paste it below, or upload a .txt or .md file.">
+            <Field
+              label="Your script"
+              hint="Paste it below, or upload a .txt or .md file."
+            >
               <textarea
                 className={`${inputClass} min-h-40 resize-y font-mono text-xs`}
                 value={pastedScript}
                 onChange={(e) => setPastedScript(e.target.value)}
-                placeholder={"[0:00–0:05] VISUAL: ... VO: \"...\" ON-SCREEN: ..."}
+                placeholder={'[0:00–0:05] VISUAL: ... VO: "..." ON-SCREEN: ...'}
               />
               <div className="flex items-center gap-3">
                 <button
@@ -180,19 +344,83 @@ export default function NewRunPage() {
                     if (file) handleFile(file);
                   }}
                 />
-                <span className="text-xs text-muted">{countWords(pastedScript)} words</span>
+                <span className="text-xs text-muted">
+                  {countWords(pastedScript)} words
+                </span>
               </div>
-              {errors.pastedScript && <span className="text-xs text-danger">{errors.pastedScript}</span>}
+              {errors.pastedScript && (
+                <span className="text-xs text-danger">
+                  {errors.pastedScript}
+                </span>
+              )}
             </Field>
           </>
         )}
 
+        <Field
+          label="Product or subject details"
+          hint="What is actually being shown? Leave materials, price and performance unspecified unless you have evidence."
+        >
+          <textarea
+            value={productDetails}
+            onChange={(e) => {
+              setProductDetails(e.target.value);
+              setConfirmed(false);
+            }}
+            className={inputClass}
+          />
+        </Field>
+        <Field label="Visual preferences">
+          <textarea
+            value={visualPreferences}
+            onChange={(e) => setVisualPreferences(e.target.value)}
+            className={inputClass}
+          />
+        </Field>
+        <Field
+          label="What we’re creating"
+          hint="For a broad topic such as clothing brand, confirm an explicit interpretation. Platform below controls distribution, not the subject."
+        >
+          <textarea
+            value={summary}
+            onChange={(e) => {
+              setSummary(e.target.value);
+              setConfirmed(false);
+            }}
+            className={inputClass}
+          />
+          <button
+            type="button"
+            className="border rounded p-2"
+            onClick={() => {
+              setSummary(
+                `${objective} ${topic || "the specified product"} for ${audience || "the chosen audience"}, focusing on ${productDetails.trim() || "the subject and visible product details"}. No invented brand-specific claims.`,
+              );
+              setConfirmed(false);
+            }}
+          >
+            Propose interpretation
+          </button>
+        </Field>
+        <label className="text-sm">
+          <input
+            type="checkbox"
+            checked={confirmed}
+            onChange={(e) => setConfirmed(e.target.checked)}
+          />{" "}
+          I confirm this content interpretation and Brand kit choice
+        </label>
+        {errors.interpretation && (
+          <p role="alert" className="text-warning">
+            {errors.interpretation}
+          </p>
+        )}
         <Field label="Audience" hint="Who is this for?">
           <input
             className={inputClass}
             value={audience}
             onChange={(e) => setAudience(e.target.value)}
-            placeholder="e.g. plant-based regulars deciding what to order next"
+            placeholder="e.g. young adults choosing their everyday style"
           />
         </Field>
 
@@ -217,7 +445,11 @@ export default function NewRunPage() {
               value={targetVideoModel}
               onChange={(e) => setTargetVideoModel(e.target.value)}
             />
-            {errors.targetVideoModel && <span className="text-xs text-danger">{errors.targetVideoModel}</span>}
+            {errors.targetVideoModel && (
+              <span className="text-xs text-danger">
+                {errors.targetVideoModel}
+              </span>
+            )}
           </Field>
 
           <Field label="Aspect ratio">
@@ -250,13 +482,22 @@ export default function NewRunPage() {
                 onChange={(e) => setDurationSeconds(Number(e.target.value))}
                 className="flex-1 accent-[var(--accent)]"
               />
-              <span className="w-12 text-right text-sm tabular-nums">{durationSeconds}s</span>
+              <span className="w-12 text-right text-sm tabular-nums">
+                {durationSeconds}s
+              </span>
             </div>
-            {errors.durationSeconds && <span className="text-xs text-danger">{errors.durationSeconds}</span>}
+            {errors.durationSeconds && (
+              <span className="text-xs text-danger">
+                {errors.durationSeconds}
+              </span>
+            )}
           </Field>
         </div>
 
-        <Field label="Source links" hint="Optional, one per line. Facts are still verified against live search results.">
+        <Field
+          label="Source links"
+          hint="Optional, one per line. Facts are still verified against live search results."
+        >
           <textarea
             className={`${inputClass} min-h-16 resize-y`}
             value={sourceLinks}

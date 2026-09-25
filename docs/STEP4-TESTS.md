@@ -46,3 +46,7 @@ Screenshots were inspected from temporary output files for Direction, Look and S
 Live access for this account, actual visual quality, consistency with a photographic reference, provider refusals, and the review model's real visual judgement remain unverified. Deterministic local PNG fixtures validate wiring and recovery, not model quality. No deployment, Pack generation, real final Approve, social integration, authentication or database migration was tested or implemented in this step.
 
 The original standalone frontend SAMPLE DATA path remains available when the API URL is unset. The main browser test used the configured backend; it did not treat a failed backend as permission to enter standalone mode.
+
+## 2026-09-26 corrective pass
+
+See `LIVE-VALIDATION.md` for failure reproduction, inspected original pixels, corrective regression coverage, browser observations and the separate pending live acceptance journey. Final corrective run: 39 automated tests passed, zero failed; frontend lint and both production builds passed. Browser click-through reached approved Storyboard with zero JavaScript errors and no 390px overflow. Repaired live generation is not run, pending confirmation. New regressions are in `backend/test/repair.test.ts`; generation tests also ensure a lower-scored relevant replacement wins over a polished wrong-subject frame. No runtime runs, secrets or generated test images are committed.

@@ -315,3 +315,58 @@ Confirmation quotes deliberately use larger token allowances (56,000 input and 6
 `TEST_SCENARIO` is an optional test-only fixture selector: `pass`, `prompt-improve`, `prompt-fail`, `frame-improve`, `frame-fail`, `provider-error`. It has no effect on live responses. Fixtures return the SDK response shape and local PNG bytes through the same validation, storage, review and UI paths. They make no provider or fixture-image network requests.
 
 Direction/Look/Storyboard have no SAMPLE badge with a backend configured. TEST MODE remains visible. Completed stages can be inspected through local tabs. Expandable histories expose every version, score and call; activity comes from backend state, so reopening preserves it. Costs are shown by stage and by call, with unknown usage identified. Errors never fall back to browser samples. With no backend URL, the original standalone SAMPLE DATA flow still works.
+
+## Corrective implementation — 2026-09-26 (Steps 3–4)
+
+This section supersedes earlier implementation details about automatically copying the Brand kit at Direction, requiring five facts, and sending the complete video prompt to the image model. Session 10.3 ends at approved Storyboard. Pack and Approve remain SAMPLE.
+
+### Brief, evidence and versions
+
+`run.effective` is the approved interpretation: subject, objective, product description, visual preferences, factual constraints, summary, confirmation, Brand kit choice and revision number. Platform only sets the publishing format. The run contains its own Brand kit snapshot. New creation defaults to no kit; saved and run-specific options require a choice. An unconfirmed interpretation or obvious clothing/coffee conflict blocks generation.
+
+Research records its actual grounding queries and request brief. Up to eight useful facts are reviewed for both evidence and relevance. Sources still come only from grounding metadata and retrieved source text; unavailable evidence is dropped. A creative product-led script can use zero factual claims. Each beat has stable IDs, optional fact IDs and a claim type: creative, supported, or manually edited/unverified. No fact IDs are assigned to a newly hand-written claim merely because an older beat cited them. An independent fidelity check must pass before Story approval is recorded.
+
+| Saved record | Purpose |
+|---|---|
+| `effective.revision`, `script.version`, `storyApproval` | Bind approval to exactly the brief and script reviewed |
+| `feedbackHistory`, `scriptVersions`, `job.revisionDraft` | Feedback status, prior scripts, change summaries and a saved draft for restart recovery |
+| `history` | Outdated brief, evidence, scripts, feedback, Brand kit, directions and image work; retained rather than deleted |
+| `generation.prompts[].inputSnapshot` | Canonical brief/script/direction/feedback input for the displayed prompt |
+| Prompt/image `review.criticalFailures` | Specific wrong-subject/objective, brand-contamination or unsupported-claim failures that prevent a pass |
+| Image `stillPrompt`, `referenceAssetId` | Exact visible-image instructions and identity reference used for generation/review |
+| Run/artifact `mode` | `test`, `live` or legacy `unknown`; never derived from today's server mode |
+
+Script-feedback statuses are `pending`, `completed`, `failed`, `needs_research`. The added job kind is `script-revision`; its saved checkpoints include `revision`, `revision-written` and `scripted`. Existing stage and job-status values remain unchanged. Every model call still uses the common gateway, including revisions and key-frame reviews.
+
+### Added or strengthened routes
+
+All routes have the `/api` prefix. `scriptVersion` and `briefRevision` are comparison tokens: outdated requests fail instead of overwriting newer work.
+
+| Route | Behaviour |
+|---|---|
+| `POST /runs` | Save explicit interpretation, provenance and selected Brand kit snapshot; ambiguous runs cannot start generation |
+| `PATCH /runs/:id/brief` | Require expected brief revision, archive dependent work, save new interpretation and clear obsolete research/script |
+| `POST /runs/:id/story/reopen` | Require `confirmInvalidation:true`; archive work and invalidate downstream active selections/approvals |
+| `PATCH /runs/:id/script` | Save direct edits with exact version checks and retain previous script |
+| `POST /runs/:id/script/revise` | Persist feedback and queue targeted or full revision using the current saved inputs |
+| `POST /runs/:id/script/restore` | Restore a prior script as a new version, with concurrency checks |
+| `POST /runs/:id/directions` | Require exact script/brief versions; check fidelity before binding approval and generating three directions |
+| `POST /runs/:id/prompt/revise` | Require current prompt ID; generate/rescore feedback revision and invalidate dependent quotes/approvals |
+| `POST /runs/:id/product-reference` | Validate image bytes and save identity reference without AI generation; freeze before Look starts |
+| Existing key-frame/Storyboard approval routes | Reject stale inputs; generated Look must pass review, and Storyboard must have no critical subject/factual failures |
+
+Reopen is required before modifying approved Story/brief. Edits cannot run while a job is queued, running or interrupted. Local storage serializes updates in one process. Resume reuses saved outputs and the saved script revision draft; completed storyboard frames are skipped. A provider result lost before persistence still has unknown live usage and is not claimed to be free.
+
+### Visual generation and cost control
+
+The key frame and each mapped frame receive a dedicated still prompt: subject/product, visible moment, composition, setting, lighting, visual identity, relevant constraints and user feedback. The full video prompt retains narration/editorial overlays, but those are not dumped into image requests. Actual image bytes reach generation and review. The key frame is automatically reviewed, optionally repaired within the confirmed allowance, and then approved by a person. Failed key images do not establish reference identity. Uploaded finished Looks retain the explicit human approval path.
+
+At default prices/caps, the conservative confirmed allowance per generated frame slot is **$0.8688**: up to two image versions, each with one review, with three provider-request attempts reserved for 429 errors. It comprises $0.402 image output, $0.276 image input/text-thinking allowance and $0.1908 review allowance. A six-frame board plus one manual frame revision has a combined upper planning allowance of **$6.0816**, confirmed in separate actions; it is not the expected spend or a provider invoice. Typical successful image output alone is $0.067 per frame, plus returned input, text/thinking and review usage. Text research/revision/prompt costs are logged separately. Allowances are not a global account spending cap.
+
+### Storage, interface and scope
+
+Runs, scripts, feedback, quotes, prompt versions, reviews, activity and AI calls remain in `backend/data/run-<id>.json`, through `storage.ts`. Uploaded/generated PNG files stay under `backend/data/images/` with server-created IDs. These are ignored local runtime data. No existing paid asset is overwritten or deleted by invalidation.
+
+The browser displays the effective brief/kit, original and revised scripts, Restore, outdated history, exact prompt and still instructions, critical failures, actual images, persisted progress and per-stage/per-call estimated costs. Simulated runs and artifacts remain visibly simulated even under a LIVE server. Connection errors never fall back to browser samples when a backend URL is set.
+
+This remains a single-user, single-process local build. Authentication, shared persistence, deployment, publishing and operational production hardening remain later-session work. Automated review and lexical conflict checks cannot guarantee semantic correctness; live acceptance requires inspecting generated images, not simply trusting scores.

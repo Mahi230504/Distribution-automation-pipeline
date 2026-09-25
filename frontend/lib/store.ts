@@ -50,7 +50,7 @@ export function resetSampleStore(): void {
 
 export function listRunsFromStore(): Run[] {
   return [...loadStore().runs].sort(
-    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+    (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime(),
   );
 }
 
@@ -77,7 +77,7 @@ export function getBrandKitFromStore(): BrandKit {
 
 export function saveBrandKitToStore(brandKit: BrandKit): BrandKit {
   const store = loadStore();
-  store.brandKit = brandKit;
+  store.brandKit = { ...brandKit, origin: "saved" };
   saveStore(store);
-  return brandKit;
+  return store.brandKit;
 }

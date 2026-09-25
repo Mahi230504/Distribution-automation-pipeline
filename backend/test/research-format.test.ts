@@ -15,10 +15,10 @@ test("Grounded numbered prose retains statements and matches provider punctuatio
   assert.ok(!matchesSupport("Shoe feature 1", facts[0].text));
 });
 
-test("Research parser still accepts JSON fixtures and rejects too few claims", () => {
+test("Research parser still accepts JSON fixtures and allows fewer useful claims instead of filling an irrelevant quota", () => {
   const data = {facts: Array.from({length:5}, (_,i)=>({text:`Fact ${i}`}))};
   assert.deepEqual(parseResearch(response(data)), data);
   const reply = response({});
   reply.candidates![0].content!.parts![0].text = "1. Only one claim.";
-  assert.throws(()=>parseResearch(reply));
+  assert.equal(parseResearch(reply).facts.length, 1);
 });

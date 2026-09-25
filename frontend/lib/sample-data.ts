@@ -20,6 +20,7 @@ import {
 import { countWords, estimateSecondsFromWordCount, randomId } from "./format";
 
 export const SAMPLE_BRAND_KIT: BrandKit = {
+  origin: "demo",
   brandName: "Northwind Coffee Co.",
   palette: ["#2E2A24", "#C48A3E", "#F4EDE1", "#5B7B63"],
   characterDescription:

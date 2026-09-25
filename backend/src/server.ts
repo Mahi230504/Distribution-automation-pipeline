@@ -8,9 +8,19 @@ import { health } from "./gemini.js";
 import { recover, startJob, isBusy } from "./jobs.js";
 import { parseScript } from "./script.js";
 import { generationRouter } from "./generation-routes.js";
+import {
+  interpretationSchema,
+  emptyBrand,
+  brandConflict,
+  mode,
+} from "./brief.js";
+import { repairRouter } from "./repair-routes.js";
 import { sampleAction } from "./samples.js";
 const platform = z.enum(["instagram_reels", "youtube_shorts", "linkedin"]);
 const brief = z.object({
+  interpretation: interpretationSchema.optional(),
+  brandSelection: z.enum(["none", "saved", "custom"]).default("none"),
+  brandKit: z.any().optional(),
   topic: z.string().trim().min(1).max(500),
   audience: z.string().max(1000).default(""),
   platform,
@@ -55,6 +65,7 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: Math.ceil(settings.uploadBytes * 1.4) + 1024 }));
+app.use(repairRouter);
 app.use(generationRouter);
 app.get("/api/health", async (_req, res) => {
   const h = await health();
@@ -71,6 +82,20 @@ app.post("/api/runs", async (req, res) => {
   const input = brief.parse(req.body),
     now = new Date().toISOString();
   const r: Run = {
+    mode: mode(),
+    effective: {
+      ...(input.interpretation ?? {
+        subject: input.topic,
+        objective: "promote" as const,
+        productDetails: "",
+        visualPreferences: "",
+        factualConstraints: "",
+        summary: `Create content about ${input.topic}. Please choose the objective and product details.`,
+        confirmed: false,
+      }),
+      revision: 1,
+      brandSelection: input.brandSelection,
+    },
     id: randomUUID(),
     userId: "local-user",
     brief: input,
@@ -92,9 +117,16 @@ app.post("/api/runs", async (req, res) => {
     frames: [],
     pack: null,
     aiCallLog: [],
-    brandKit: await storage.getBrandKit(),
+    brandKit:
+      input.brandSelection === "saved"
+        ? await storage.getBrandKit()
+        : input.brandSelection === "custom"
+          ? brand.parse(input.brandKit)
+          : structuredClone(emptyBrand),
     sampleStages: true,
   };
+  if (brandConflict(r.effective!.subject, r.brandKit))
+    r.effective!.confirmed = false;
   res.status(201).json(await storage.createRun(r));
 });
 app.get("/api/runs/:id", async (req, res) =>
@@ -125,20 +157,6 @@ app.patch("/api/runs/:id/facts", async (req, res) => {
   if (!r.facts.some((f) => f.id === body.factId))
     throw new Error("Fact not found");
   res.status(202).json(await startJob(r.id, "rewrite", body));
-});
-app.patch("/api/runs/:id/script", async (req, res) => {
-  const { fullText } = z
-    .object({ fullText: z.string().min(1).max(30000) })
-    .parse(req.body);
-  res.json(
-    await storage.updateRun(req.params.id, (r) => {
-      if (isBusy(r) || r.currentStage !== "story")
-        throw new Error("Wait for Story to finish before editing.");
-      const script = parseScript(fullText, r.brief.durationSeconds, r.script);
-      if (r.script) (r.scriptVersions ??= []).push(r.script);
-      r.script = script;
-    }),
-  );
 });
 app.get("/api/runs/:id/cost-estimate", async (req, res) => {
   await storage.getRun(req.params.id);

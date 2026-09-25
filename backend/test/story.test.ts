@@ -40,6 +40,8 @@ async function api(
   body?: unknown,
   method = body ? "POST" : "GET",
 ) {
+  if(route==='/runs'&&body){const b=body as any;body={...b,brandSelection:'none',interpretation:{subject:b.topic,objective:'explain',productDetails:'',visualPreferences:'',factualConstraints:'No unsupported claims',summary:`Explain ${b.topic} clearly to the selected audience.`,confirmed:true}};}
+  if(body && (route.endsWith('/directions')||route.endsWith('/script'))){const runRoute=route.replace(/\/(directions|script)$/,'');const r=await api(runRoute);body={...(body as object),scriptVersion:r.script.version,briefRevision:r.effective.revision};}
   const res = await fetch(`http://127.0.0.1:${port}/api${route}`, {
     method,
     headers: { "Content-Type": "application/json" },

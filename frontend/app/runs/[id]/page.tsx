@@ -23,6 +23,8 @@ import {
 } from "@/lib/api";
 import { Pack, Run, RunStage } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
+import BriefIdentity from "@/components/BriefIdentity";
+import ScriptFeedbackPanel from "@/components/ScriptFeedbackPanel";
 import GenerationWorkspace from "@/components/GenerationWorkspace";
 import Stepper from "@/components/Stepper";
 import StatusPill from "@/components/StatusPill";
@@ -236,6 +238,12 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
       {actionError && <ErrorBanner message={actionError} />}
       {loadingLabel && <LoadingState key={loadingLabel} label={loadingLabel} />}
 
+      {!isSampleMode() && (
+        <BriefIdentity run={run} busy={busy} onAction={runAction} />
+      )}
+      {run.currentStage === "story" && !isSampleMode() && (
+        <ScriptFeedbackPanel run={run} busy={busy} onAction={runAction} />
+      )}
       {run.currentStage === "brief" && (
         <BriefPanel
           run={run}
@@ -253,10 +261,19 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
             runAction("Rewriting script", () => toggleFact(id, factId, removed))
           }
           onSaveScript={(fullText) =>
-            runAction("Saving script", () => saveScript(id, fullText))
+            runAction("Saving script", () =>
+              saveScript(
+                id,
+                fullText,
+                run.script?.version,
+                run.effective?.revision,
+              ),
+            )
           }
           onApprove={() =>
-            runAction("Coming up with directions", () => approveStory(id))
+            runAction("Coming up with directions", () =>
+              approveStory(id, run.script?.version, run.effective?.revision),
+            )
           }
         />
       )}

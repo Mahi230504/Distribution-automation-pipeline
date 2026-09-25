@@ -202,9 +202,12 @@ export default function StoryPanel({
             disabled={
               busy ||
               dirty ||
-              run.jobStatus !== "needs_review" ||
-              !run.script ||
-              !run.facts.some((f) => !f.removed)
+              (run.jobStatus !== "needs_review" &&
+                !(
+                  run.jobStatus === "failed" &&
+                  run.job?.kind === "script-revision"
+                )) ||
+              !run.script
             }
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong disabled:opacity-60"
           >

@@ -112,3 +112,32 @@ The saved key passed model-access checks for all three configured models. Two JS
 Live source retrieval also exposed Node 22 requesting an array from the pinned DNS callback. Returning a single-address callback shape caused `ERR_INVALID_IP_ADDRESS`. The callback now supports both shapes using the validated address. Non-HTML/text responses are rejected so PDF bytes cannot masquerade as page evidence. Regression tests cover both DNS shapes and research parsing/attribution. No API key is committed or logged.
 
 The first live full-prompt response also returned `visualBible` as an object instead of the required string. Non-search Direction and prompt-writing calls now send the JSON schema to Gemini as well as validating it locally. Research remains prose because grounding behaved differently under JSON constraints. Errors remain saved and explicit; no silent provider retry was added.
+
+## 2026-09-26 — Corrective pass: content fidelity and visual review
+
+The failed clothing run demonstrated a chain failure: a broad brief was interpreted as platform marketing research, the saved coffee kit contaminated the visual plan, and reviewers rewarded faithfulness to an already off-topic script. A high score did not establish relevance.
+
+- A confirmed **effective brief** (the exact interpretation used for this run) separates subject, objective, audience, format, product details, visual preferences and factual constraints. New runs use no Brand kit unless explicitly selected. Demo presets, explicitly saved kits and older kits of unknown origin are labelled separately. A saved kit or an edited run-only copy is frozen at creation; fixing a run never overwrites the global kit. Broad clothing/shoe promotion briefs need product details before calls begin. Obvious clothing/coffee conflicts stop generation; the semantic AI checks cover other conflicts but remain fallible.
+- Research uses this content interpretation, notes and supplied links. Platform statistics/specifications are rejected when the platform is not the requested subject. Source provenance, numbered grounded prose and the Node 22 DNS fix remain intact. Facts are optional support for a product campaign: accept up to eight useful claims, not a quota of unrelated statistics. With no retained evidence, a product-led creative script may still proceed with an explicit uncited warning and no unsupported factual narration.
+- Script feedback runs as a saved job. Opening/selected-beat feedback preserves protected IDs, timing and untouched beats; whole-script feedback revises all beats. Save the draft before its independent factual/relevance review so Resume can reuse it. New claims or changed subjects require explicitly updating the brief and requesting research. Restore creates a new version; it does not roll the counter backwards.
+- Story approval binds script version and brief revision. Reopen archives the script, evidence, feedback, Brand kit, directions and image work before clearing dependent active selections and approvals. Brief edits clear obsolete current research/script. Busy runs reject edits; stale version tokens and stale quotes are rejected. Old paid files and call logs remain intact.
+- Prompt optimization uses one stable brief/script/direction/feedback input across attempts. The five scores use their minimum. Critical failures (wrong subject/objective, unrelated brand, unsupported claims) override a high score. Rewrites address recorded weaknesses, rescore the exact saved result, and stop at the configured cap or stalled minimum score. Prompt feedback produces a new reviewed version and invalidates image quotes/approvals.
+- Every image has a saved dedicated still prompt. It includes product identity, visible beat, visual style/constraints and image reference, not the full narration/platform report. Editorial VO and intended overlays stay in the script. Review the actual key-frame pixels before human approval as well as every generated storyboard frame. A failed key cannot seed the storyboard. Do not use a failed generated key as the identity reference for its automatic repair.
+- Optional product-photo upload supplies identity bytes to generation/review. Uploading a finished Look skips AI generation and retains human approval. Both use the existing byte validation and safe storage path.
+- The confirmed image allowance now includes key-frame review and bounded automatic repairs as well as frame reviews and 429 retries. Costs remain estimates, not invoices. Provider retries, user feedback and quality-driven repairs are separate saved events.
+- Persist simulation/live provenance on runs and artifacts. Infer legacy provenance from saved call records, never the server's current mode. Mixed/unknown legacy provenance stays unknown. A run cannot switch generation mode halfway through.
+
+Useful principles adapted from the original Python optimizer: human-feedback revision, targeted repairs, concrete evidence in critiques, exact-version scoring, reference continuity, caps and stopping on stalled improvement. No DSPy/Python runtime, fixed palette transition, or rule elevating incorrect pixels above user intent was imported.
+
+### Official model verification — 2026-09-26
+
+Models retained; no silent substitutions:
+
+| Role | Model | Standard paid USD price |
+|---|---|---|
+| Writing/research | `gemini-3.8-flash` | $0.75 input / $3.75 output per million tokens, including thinking; current promotional rates through 2026-12-31 |
+| Text/image review | `gemini-3.5-flash-lite` | $0.30 input / $2.50 output per million tokens |
+| Still images | `gemini-3.1-flash-image` | $0.50 input / $3 text/thinking output per million tokens; approximately $0.067 per 1K output image |
+| Google Search | Grounding | $0.014 per reported search query, conservatively excluding the shared free allowance |
+
+Sources: [Google pricing](https://ai.google.dev/gemini-api/docs/pricing), [image generation and editing](https://ai.google.dev/gemini-api/docs/image-generation), [review model capabilities](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite). The image guide supports reference-image input and both 9:16 and 16:9; Flash-Lite accepts image input and structured text output. These documentation checks establish supported capabilities, not the quality of this app's live output. Writing prices rise to $1.50/$7.50 on 2027-01-01 according to the checked page; update settings before then.

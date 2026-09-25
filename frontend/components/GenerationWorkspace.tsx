@@ -3,6 +3,7 @@
 import { useState } from "react";
 import type { Run, ImageQuote, QualityReview, ImageAttempt } from "@/lib/types";
 import {
+  repairAction,
   approveStory,
   selectDirection,
   requestImageQuote,
@@ -32,6 +33,11 @@ function Scores({ review }: { review?: QualityReview }) {
         {review.threshold} ·{" "}
         {review.passed ? "Passed" : "Quality threshold not reached"}
       </p>
+      {review.criticalFailures?.map((f, i) => (
+        <p key={i} role="alert" className="text-warning">
+          Critical: {label(f.code)} — {f.evidence}
+        </p>
+      ))}
       {Object.entries(review.dimensions).map(([name, d]) => (
         <div key={name}>
           <div className="flex justify-between gap-3 text-sm">
@@ -76,13 +82,24 @@ function ImageView({ image, run }: { image: ImageAttempt; run: Run }) {
         className="max-h-[480px] w-full rounded-lg object-contain bg-background"
       />
       <p className="text-sm">
-        Attempt {image.attempt} · {image.source} · {image.origin}{" "}
+        {image.mode === "test"
+          ? "SIMULATED"
+          : image.mode === "live"
+            ? "LIVE"
+            : "PROVENANCE UNKNOWN"}{" "}
+        · Attempt {image.attempt} · {image.source} · {image.origin}{" "}
         {image.approval ? `· ${image.approval}` : ""}
       </p>
       {image.note && (
         <p className="text-sm text-muted break-words">Change: {image.note}</p>
       )}
       {image.review && <Scores review={image.review} />}
+      {image.stillPrompt && (
+        <details>
+          <summary>Exact still-image instructions</summary>
+          <p className="text-sm whitespace-pre-wrap">{image.stillPrompt}</p>
+        </details>
+      )}
       <Calls run={run} ids={image.callIds} />
     </div>
   );
@@ -103,6 +120,7 @@ export default function GenerationWorkspace({
   const [direction, setDirection] = useState(run.selectedDirectionId ?? "");
   const [note, setNote] = useState(run.directionNote);
   const [change, setChange] = useState("");
+  const [promptNote, setPromptNote] = useState("");
   const [frameNotes, setFrameNotes] = useState<Record<string, string>>({});
   const [quote, setQuote] = useState<ImageQuote | null>(null);
   const [requesting, setRequesting] = useState(false);
@@ -133,7 +151,7 @@ export default function GenerationWorkspace({
       setRequesting(false);
     }
   }
-  async function upload(file?: File) {
+  async function upload(file?: File, productReference = false) {
     if (!file) return;
     setError("");
     if (file.size > (g?.limits.uploadBytes ?? 5242880)) {
@@ -148,7 +166,9 @@ export default function GenerationWorkspace({
         reader.readAsDataURL(file);
       });
       await onAction("Saving uploaded reference", () =>
-        uploadKeyFrame(run.id, dataUrl),
+        productReference
+          ? repairAction(run.id, "product-reference", { dataUrl })
+          : uploadKeyFrame(run.id, dataUrl),
       );
     } catch (e) {
       setError((e as Error).message);
@@ -245,7 +265,13 @@ export default function GenerationWorkspace({
               className={button}
               disabled={busy}
               onClick={() =>
-                onAction("Developing directions", () => approveStory(run.id))
+                onAction("Developing directions", () =>
+                  approveStory(
+                    run.id,
+                    run.script?.version,
+                    run.effective?.revision,
+                  ),
+                )
               }
             >
               Generate three directions
@@ -324,6 +350,38 @@ export default function GenerationWorkspace({
             <strong>Avoid:</strong> {prompt.negativePrompt}
           </p>
           <Scores review={prompt.review} />
+          <p className="text-sm text-warning">
+            {prompt.mode === "test"
+              ? "SIMULATED prompt review"
+              : prompt.mode === "live"
+                ? "Live model review — inspect the result; a score is not proof."
+                : "Historical review"}
+          </p>
+          {prompt.stopReason && (
+            <p className="text-warning">{prompt.stopReason}</p>
+          )}
+          <label className="block mt-4">
+            Improve this prompt before images
+            <textarea
+              value={promptNote}
+              onChange={(e) => setPromptNote(e.target.value)}
+              className="block w-full p-3 border rounded"
+            />
+          </label>
+          <button
+            className={button}
+            disabled={busy || !promptNote.trim()}
+            onClick={() =>
+              onAction("Revising prompt", () =>
+                repairAction(run.id, "prompt/revise", {
+                  promptId: prompt.id,
+                  note: promptNote,
+                }),
+              )
+            }
+          >
+            Revise prompt
+          </button>
           <Calls run={run} ids={prompt.callIds} />
           <details className="mt-5">
             <summary className="cursor-pointer py-2">
@@ -355,6 +413,19 @@ export default function GenerationWorkspace({
       {current === "look" && (
         <section className={box}>
           <h2 className="text-xl font-semibold mb-4">Set the Look</h2>
+          {!key && (
+            <label className="block mb-4">
+              Optional product photo — identity reference for generation, not a
+              finished Look
+              <input
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={busy}
+                onChange={(e) => void upload(e.target.files?.[0], true)}
+              />
+              {run.productReference && <span>Product reference saved.</span>}
+            </label>
+          )}
           {key ? (
             <ImageView image={key} run={run} />
           ) : (
@@ -377,7 +448,11 @@ export default function GenerationWorkspace({
               <>
                 <button
                   className={button}
-                  disabled={busy || key.approval === "approved"}
+                  disabled={
+                    busy ||
+                    key.approval === "approved" ||
+                    (key.source === "generated" && !key.review?.passed)
+                  }
                   onClick={() => {
                     setTab("storyboard");
                     void onAction("Approving Look", () =>
@@ -399,7 +474,7 @@ export default function GenerationWorkspace({
               </>
             )}
             <label className={`${secondary} cursor-pointer`}>
-              Upload my own image
+              Upload finished Look (skip generation)
               <input
                 type="file"
                 accept="image/png,image/jpeg,image/webp"

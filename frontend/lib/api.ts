@@ -71,9 +71,12 @@ async function realFetch<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ApiError(
-      text || `Request to ${path} failed with status ${res.status}.`,
-    );
+    let message = text;
+    try {
+      const parsed = JSON.parse(text);
+      if (typeof parsed.error === "string") message = parsed.error;
+    } catch {}
+    throw new ApiError(message || `Request failed with status ${res.status}.`);
   }
   return res.json() as Promise<T>;
 }
@@ -187,6 +190,8 @@ export async function toggleFact(
 export async function saveScript(
   runId: string,
   fullText: string,
+  scriptVersion?: number,
+  briefRevision?: number,
 ): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
@@ -201,11 +206,15 @@ export async function saveScript(
   }
   return realFetch<Run>(`/api/runs/${runId}/script`, {
     method: "PATCH",
-    body: JSON.stringify({ fullText }),
+    body: JSON.stringify({ fullText, scriptVersion, briefRevision }),
   });
 }
 
-export async function approveStory(runId: string): Promise<Run> {
+export async function approveStory(
+  runId: string,
+  scriptVersion?: number,
+  briefRevision?: number,
+): Promise<Run> {
   // Maps to POST /api/runs/:id/directions — generating directions is how the
   // app moves a run from Story into the Direction stage.
   if (isSampleMode()) {
@@ -218,7 +227,10 @@ export async function approveStory(runId: string): Promise<Run> {
     saveRunToStore(run);
     return delay(run, 1600);
   }
-  return realFetch<Run>(`/api/runs/${runId}/directions`, { method: "POST" });
+  return realFetch<Run>(`/api/runs/${runId}/directions`, {
+    method: "POST",
+    body: JSON.stringify({ scriptVersion, briefRevision }),
+  });
 }
 
 // ---------- Direction ----------
@@ -552,4 +564,16 @@ export async function rejectKey(id: string): Promise<Run> {
 }
 export async function approveStoryboard(id: string): Promise<Run> {
   return realFetch(`/api/runs/${id}/storyboard/approve`, { method: "POST" });
+}
+
+export async function repairAction(
+  id: string,
+  route: string,
+  body: unknown,
+  method = "POST",
+): Promise<Run> {
+  return realFetch(`/api/runs/${id}/${route}`, {
+    method,
+    body: JSON.stringify(body),
+  });
 }

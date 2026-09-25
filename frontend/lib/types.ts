@@ -79,6 +79,7 @@ export const JOB_STATUS_LABELS: Record<JobStatus, string> = {
 };
 
 export interface BrandKit {
+  origin?: "saved" | "empty" | "demo" | "legacy";
   brandName: string;
   palette: string[];
   characterDescription: string;
@@ -108,6 +109,7 @@ export interface Fact {
 }
 
 export interface ScriptBeat {
+  claimType?: "creative" | "supported" | "user_unverified";
   factIds?: string[];
   id: string;
   startSeconds: number;
@@ -118,6 +120,9 @@ export interface ScriptBeat {
 }
 
 export interface Script {
+  mode?: "test" | "live" | "unknown";
+  changeSummary?: string;
+  changedBeatIds?: string[];
   author?: "ai" | "user";
   speakingRate?: number;
   version: number;
@@ -236,10 +241,38 @@ export interface AiCallLogEntry {
 }
 
 export interface Run {
+  mode?: "test" | "live" | "unknown";
+  effective?: EffectiveBrief;
+  storyApproval?: { scriptVersion: number; briefRevision: number; at: string };
+  feedbackHistory?: ScriptFeedback[];
+  history?: {
+    facts?: Fact[];
+    sources?: Source[];
+    research?: Run["research"];
+    feedbackHistory?: ScriptFeedback[];
+    scriptVersions?: Script[];
+    brandKit?: BrandKit;
+    brief: Brief;
+    effective?: EffectiveBrief;
+    script: Script | null;
+    generation?: GenerationState;
+    directions: Direction[];
+    at: string;
+  }[];
+  productReference?: ImageAttempt;
   generation?: GenerationState;
   job?: {
     id: string;
-    kind: "story" | "rewrite" | GenerationKind;
+    kind: "story" | "rewrite" | "script-revision" | GenerationKind;
+    revisionDraft?: {
+      requiresResearch: boolean;
+      reason: string;
+      summary: string;
+      beats: ScriptBeat[];
+    };
+    feedbackId?: string;
+    baseScriptVersion?: number;
+    briefRevision?: number;
     completed?: string[];
     quoteId?: string;
     frameId?: string;
@@ -255,6 +288,9 @@ export interface Run {
     fresh?: boolean;
   };
   research?: {
+    mode?: "test" | "live" | "unknown";
+    queries?: string[];
+    requestBrief?: string;
     status: "cited" | "uncited";
     createdAt: string;
     cacheKey: string;
@@ -286,6 +322,9 @@ export interface Run {
 }
 
 export interface NewRunInput {
+  interpretation?: Omit<EffectiveBrief, "revision" | "brandSelection">;
+  brandSelection?: "none" | "saved" | "custom";
+  brandKit?: BrandKit;
   topic: string;
   audience: string;
   platform: Platform;
@@ -311,6 +350,8 @@ export type ChangeOrigin =
   | "automatic frame regeneration"
   | "provider retry";
 export interface QualityReview {
+  criticalFailures?: { code: string; evidence: string }[];
+  mode?: "test" | "live" | "unknown";
   dimensions: Record<string, { score: number; explanation: string }>;
   overall: number;
   threshold: number;
@@ -318,6 +359,10 @@ export interface QualityReview {
   callIds: string[];
 }
 export interface PromptAttempt {
+  mode?: "test" | "live" | "unknown";
+  inputSnapshot?: string;
+  stopReason?: string;
+  changeSummary?: string;
   id: string;
   revision: number;
   attempt: number;
@@ -332,6 +377,9 @@ export interface PromptAttempt {
   origin: ChangeOrigin;
 }
 export interface ImageAttempt {
+  referenceAssetId?: string;
+  mode?: "test" | "live" | "unknown";
+  stillPrompt?: string;
   id: string;
   assetId: string;
   imageUrl: string;
@@ -390,6 +438,7 @@ export interface ImageQuote {
   imageCallsAtQuote?: number;
 }
 export interface GenerationState {
+  promptFeedback?: string[];
   revision: number;
   storyApproved: boolean;
   directionsReady: boolean;
@@ -413,4 +462,29 @@ export interface GenerationState {
     maxFrames: number;
     uploadBytes: number;
   };
+}
+
+export interface EffectiveBrief {
+  revision: number;
+  subject: string;
+  objective: "promote" | "explain" | "demonstrate" | "tell a story";
+  productDetails: string;
+  visualPreferences: string;
+  factualConstraints: string;
+  summary: string;
+  confirmed: boolean;
+  brandSelection: "none" | "saved" | "custom";
+}
+export interface ScriptFeedback {
+  id: string;
+  note: string;
+  scope: "opening" | "selected" | "full";
+  beatIds: string[];
+  baseVersion: number;
+  briefRevision: number;
+  at: string;
+  status: "pending" | "completed" | "failed" | "needs_research";
+  summary?: string;
+  error?: string;
+  resultVersion?: number;
 }

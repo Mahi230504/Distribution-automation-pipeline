@@ -10,6 +10,7 @@ import {
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Run, BrandKit } from "../../frontend/lib/types.js";
+import { emptyBrand } from "./brief.js";
 import { settings } from "./settings.js";
 const root = path.resolve(settings.dataPath);
 let writes: Promise<unknown> = Promise.resolve();
@@ -34,6 +35,37 @@ async function write(name: string, data: unknown) {
 function runFile(id: string) {
   if (!/^[\w-]+$/.test(id)) throw new Error("Invalid run ID");
   return `run-${id}.json`;
+}
+function provenance(r: Run) {
+  const infer = (ids?: string[]) => {
+    const logs = r.aiCallLog.filter((c) => !ids || ids.includes(c.id));
+    return logs.length && logs.every((c) => c.testMode === true)
+      ? ("test" as const)
+      : logs.length && logs.every((c) => c.testMode === false)
+        ? ("live" as const)
+        : ("unknown" as const);
+  };
+  r.mode ??= infer();
+  if (r.script)
+    r.script.mode ??= infer(
+      r.aiCallLog.filter((c) => c.stage === "story").map((c) => c.id),
+    );
+  if (r.research)
+    r.research.mode ??= infer(
+      r.aiCallLog.filter((c) => c.callType === "grounding").map((c) => c.id),
+    );
+  for (const p of r.generation?.prompts ?? []) p.mode ??= infer(p.callIds);
+  for (const k of [
+    ...(r.generation?.keys ?? []),
+    ...(r.generation?.board ?? []).flatMap((f) => f.attempts),
+    ...(r.generation?.archivedBoards ?? []).flatMap((b) =>
+      b.flatMap((f) => f.attempts),
+    ),
+  ]) {
+    k.mode ??= infer(k.callIds);
+    if (k.review) k.review.mode ??= infer(k.review.callIds);
+  }
+  return r;
 }
 export const storage = {
   async saveImage(bytes: Buffer) {
@@ -81,13 +113,14 @@ export const storage = {
     );
     return runs
       .filter((r): r is Run => !!r && r.userId === userId)
+      .map(provenance)
       .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
   },
   async getRun(id: string, userId = "local-user") {
     await writes;
     const r = await read<Run>(runFile(id));
     if (!r || r.userId !== userId) throw new Error(`Run ${id} was not found.`);
-    return r;
+    return provenance(r);
   },
   createRun(run: Run) {
     return serial(async () => {
@@ -101,6 +134,7 @@ export const storage = {
       const r = await read<Run>(runFile(id));
       if (!r || r.userId !== userId)
         throw new Error(`Run ${id} was not found.`);
+      provenance(r);
       update(r);
       r.updatedAt = new Date().toISOString();
       r.runningCostUsd = r.aiCallLog.reduce(
@@ -113,21 +147,14 @@ export const storage = {
   },
   async getBrandKit(): Promise<BrandKit> {
     await writes;
-    return (
-      (await read<BrandKit>("brand.json")) ?? {
-        brandName: "Northwind Coffee Co.",
-        palette: ["#2E2A24", "#C48A3E"],
-        characterDescription: "A friendly barista in a denim apron",
-        tone: "Warm and clear",
-        constraints: "No unsupported claims",
-        preferredPlatforms: ["instagram_reels"],
-      }
-    );
+    const kit = await read<BrandKit>("brand.json");
+    return kit ? { ...kit, origin: kit.origin ?? "legacy" } : emptyBrand;
   },
   saveBrandKit(kit: BrandKit) {
     return serial(async () => {
-      await write("brand.json", kit);
-      return kit;
+      const saved = { ...kit, origin: "saved" as const };
+      await write("brand.json", saved);
+      return saved;
     });
   },
   async findResearch(cacheKey: string) {

@@ -53,6 +53,31 @@ async function request(
   method = body ? "POST" : "GET",
   status?: number,
 ) {
+  if (route === "/runs" && body) {
+    const b = body as any;
+    body = {
+      ...b,
+      brandSelection: "none",
+      interpretation: {
+        subject: b.topic,
+        objective: "explain",
+        productDetails: "",
+        visualPreferences: "",
+        factualConstraints: "No unsupported claims",
+        summary: `Explain ${b.topic} clearly to the selected audience.`,
+        confirmed: true,
+      },
+    };
+  }
+  if (body && (route.endsWith("/directions") || route.endsWith("/script"))) {
+    const runRoute = route.replace(/\/(directions|script)$/, "");
+    const r = await request(runRoute);
+    body = {
+      ...(body as object),
+      scriptVersion: r.script.version,
+      briefRevision: r.effective.revision,
+    };
+  }
   const res = await fetch(`${base}/api${route}`, {
     method,
     headers: { "Content-Type": "application/json" },
@@ -401,7 +426,7 @@ test("Step4 integration: cost gates, all artifacts, image bytes, retries, invali
         await stop();
         await start("prompt-fail");
         weak = await prompt(await directions(true));
-        assert.equal(weak.generation!.prompts.length, 3);
+        assert.equal(weak.generation!.prompts.length, 2); // stops when improvement stalls
         assert.ok(weak.generation!.prompts.every((p) => !p.review!.passed));
       },
     );
@@ -430,6 +455,21 @@ test("Step4 integration: cost gates, all artifacts, image bytes, retries, invali
       },
     );
     await t.test(
+      "a lower-scored relevant replacement wins over a polished wrong-subject frame",
+      async () => {
+        await stop();
+        await start("frame-wrong-improve");
+        let corrected = await look(await prompt(await directions(true, 2)));
+        corrected = await board(corrected);
+        const frame = corrected.generation!.board[1];
+        assert.equal(frame.attempts.length, 2);
+        assert.equal(frame.attempts[0].review!.overall, 97);
+        assert.equal(frame.attempts[0].review!.passed, false);
+        assert.equal(frame.attempts[1].review!.passed, true);
+        assert.equal(frame.selectedAttemptId, frame.attempts[1].id);
+      },
+    );
+    await t.test(
       "non-rate-limit provider error is persisted and never automatically retried",
       async () => {
         await stop();
@@ -441,7 +481,10 @@ test("Step4 integration: cost gates, all artifacts, image bytes, retries, invali
         await request(`/runs/${e.id}/directions`, {});
         e = await done(e.id);
         assert.equal(e.jobStatus, "failed");
-        assert.equal(e.aiCallLog.length, 1);
+        assert.equal(
+          e.aiCallLog.filter((c) => c.outcome === "failed").length,
+          1,
+        ); // successful preflight is separate, no provider retry
         assert.match(e.job.error, /TEST provider error/);
       },
     );
