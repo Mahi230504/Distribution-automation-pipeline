@@ -4,14 +4,7 @@
 // short delay instead of calling a real server — see docs/ARCHITECTURE.md
 // section 5 ("Test mode") for why.
 
-import {
-  BrandKit,
-  CostEstimate,
-  Frame,
-  NewRunInput,
-  Pack,
-  Run,
-} from "./types";
+import { BrandKit, CostEstimate, Frame, NewRunInput, Pack, Run } from "./types";
 import {
   generateAiCallLogEntry,
   generateDirections,
@@ -64,17 +57,23 @@ async function realFetch<T>(path: string, init?: RequestInit): Promise<T> {
       headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
     });
   } catch {
-    throw new ApiError(`Could not reach the backend at ${API_URL}. Check that it's running and reachable.`);
+    throw new ApiError(
+      `Could not reach the backend at ${API_URL}. Check that it's running and reachable.`,
+    );
   }
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new ApiError(text || `Request to ${path} failed with status ${res.status}.`);
+    throw new ApiError(
+      text || `Request to ${path} failed with status ${res.status}.`,
+    );
   }
   return res.json() as Promise<T>;
 }
 
 function notFound(id: string): never {
-  throw new ApiError(`Run ${id} was not found. It may have been deleted, or the address is wrong.`);
+  throw new ApiError(
+    `Run ${id} was not found. It may have been deleted, or the address is wrong.`,
+  );
 }
 
 // ---------- Runs ----------
@@ -101,7 +100,10 @@ export async function createRun(input: NewRunInput): Promise<Run> {
       const sources = generateSources(0);
       run.sources = sources;
       run.facts = [];
-      const wordCount = input.pastedScript.trim().split(/\s+/).filter(Boolean).length;
+      const wordCount = input.pastedScript
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
       run.script = {
         version: 1,
         beats: [],
@@ -117,19 +119,26 @@ export async function createRun(input: NewRunInput): Promise<Run> {
     saveRunToStore(run);
     return delay(run, 400);
   }
-  return realFetch<Run>("/api/runs", { method: "POST", body: JSON.stringify(input) });
+  return realFetch<Run>("/api/runs", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
 }
 
 // ---------- Story ----------
 
-export async function startStory(runId: string): Promise<Run> {
+export async function startStory(runId: string, fresh = false): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     const sources = generateSources(3);
     const facts = generateFacts(run.brief.topic, sources);
     run.sources = sources;
     run.facts = facts;
-    run.script = generateScript(run.brief.topic, run.brief.durationSeconds, facts);
+    run.script = generateScript(
+      run.brief.topic,
+      run.brief.durationSeconds,
+      facts,
+    );
     run.currentStage = "story";
     run.jobStatus = "needs_review";
     run.aiCallLog.push(generateAiCallLogEntry("story", "grounding", 0));
@@ -138,15 +147,26 @@ export async function startStory(runId: string): Promise<Run> {
     saveRunToStore(run);
     return delay(run, 2600);
   }
-  return realFetch<Run>(`/api/runs/${runId}/story`, { method: "POST" });
+  return realFetch<Run>(`/api/runs/${runId}/story`, {
+    method: "POST",
+    body: JSON.stringify({ fresh }),
+  });
 }
 
-export async function toggleFact(runId: string, factId: string, removed: boolean): Promise<Run> {
+export async function toggleFact(
+  runId: string,
+  factId: string,
+  removed: boolean,
+): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     run.facts = run.facts.map((f) => (f.id === factId ? { ...f, removed } : f));
     const activeFacts = run.facts.filter((f) => !f.removed);
-    run.script = generateScript(run.brief.topic, run.brief.durationSeconds, activeFacts);
+    run.script = generateScript(
+      run.brief.topic,
+      run.brief.durationSeconds,
+      activeFacts,
+    );
     saveRunToStore(run);
     return delay(run, 900);
   }
@@ -156,11 +176,16 @@ export async function toggleFact(runId: string, factId: string, removed: boolean
   });
 }
 
-export async function saveScript(runId: string, fullText: string): Promise<Run> {
+export async function saveScript(
+  runId: string,
+  fullText: string,
+): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     if (run.script) {
-      const wordCount = fullText.trim() ? fullText.trim().split(/\s+/).length : 0;
+      const wordCount = fullText.trim()
+        ? fullText.trim().split(/\s+/).length
+        : 0;
       run.script = rescoreScript({ ...run.script, fullText, wordCount });
     }
     saveRunToStore(run);
@@ -190,22 +215,41 @@ export async function approveStory(runId: string): Promise<Run> {
 
 // ---------- Direction ----------
 
-export async function selectDirection(runId: string, directionId: string, note: string): Promise<Run> {
+export async function selectDirection(
+  runId: string,
+  directionId: string,
+  note: string,
+): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     const direction = run.directions.find((d) => d.id === directionId);
-    if (!direction) throw new ApiError("That direction could not be found on this run.");
+    if (!direction)
+      throw new ApiError("That direction could not be found on this run.");
     run.selectedDirectionId = directionId;
     run.directionNote = note;
 
     let attempt = 1;
-    let prompt = generateVideoPrompt(direction, run.brief.topic, attempt, PROMPT_SCORE_THRESHOLD, getBrandKitFromStore());
+    let prompt = generateVideoPrompt(
+      direction,
+      run.brief.topic,
+      attempt,
+      PROMPT_SCORE_THRESHOLD,
+      getBrandKitFromStore(),
+    );
     while (!prompt.passed && attempt < PROMPT_MAX_REWRITE_ATTEMPTS) {
       attempt += 1;
-      prompt = generateVideoPrompt(direction, run.brief.topic, attempt, PROMPT_SCORE_THRESHOLD, getBrandKitFromStore());
+      prompt = generateVideoPrompt(
+        direction,
+        run.brief.topic,
+        attempt,
+        PROMPT_SCORE_THRESHOLD,
+        getBrandKitFromStore(),
+      );
     }
     run.videoPrompt = prompt;
-    run.aiCallLog.push(generateAiCallLogEntry("direction", "text", 0.003 * attempt));
+    run.aiCallLog.push(
+      generateAiCallLogEntry("direction", "text", 0.003 * attempt),
+    );
     run.runningCostUsd += 0.003 * attempt;
     // The score is shown for confidence, not acted on — the run moves straight
     // into Look, pausing for the pre-render cost confirmation (job status
@@ -223,11 +267,21 @@ export async function selectDirection(runId: string, directionId: string, note: 
 
 // ---------- Look & Storyboard ----------
 
-export async function getCostEstimate(runId: string, kind: "key_frame" | "storyboard"): Promise<CostEstimate> {
+export async function getCostEstimate(
+  runId: string,
+  kind: "key_frame" | "storyboard",
+): Promise<CostEstimate> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     if (kind === "key_frame") {
-      return delay({ label: "Key frame", amountUsd: 0.045, detail: "1 image at gemini-3.1-flash-image pricing" }, 200);
+      return delay(
+        {
+          label: "Key frame",
+          amountUsd: 0.045,
+          detail: "1 image at gemini-3.1-flash-image pricing",
+        },
+        200,
+      );
     }
     const beatCount = run.script?.beats.length ?? 5;
     const remaining = Math.max(0, beatCount - 1);
@@ -237,10 +291,12 @@ export async function getCostEstimate(runId: string, kind: "key_frame" | "storyb
         amountUsd: Math.round(remaining * 0.045 * 100) / 100,
         detail: `${remaining} image${remaining === 1 ? "" : "s"} at gemini-3.1-flash-image pricing, plus automatic quality-check regenerations if needed`,
       },
-      200
+      200,
     );
   }
-  return realFetch<CostEstimate>(`/api/runs/${runId}/cost-estimate?kind=${kind}`);
+  return realFetch<CostEstimate>(
+    `/api/runs/${runId}/cost-estimate?kind=${kind}`,
+  );
 }
 
 export async function renderKeyFrame(runId: string): Promise<Run> {
@@ -258,7 +314,10 @@ export async function renderKeyFrame(runId: string): Promise<Run> {
   return realFetch<Run>(`/api/runs/${runId}/key-frame`, { method: "POST" });
 }
 
-export async function uploadKeyFrame(runId: string, dataUrl: string): Promise<Run> {
+export async function uploadKeyFrame(
+  runId: string,
+  dataUrl: string,
+): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     const keyFrame: Frame = {
@@ -283,7 +342,10 @@ export async function uploadKeyFrame(runId: string, dataUrl: string): Promise<Ru
   });
 }
 
-export async function regenerateKeyFrame(runId: string, note: string): Promise<Run> {
+export async function regenerateKeyFrame(
+  runId: string,
+  note: string,
+): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     const prior = run.frames.find((f) => f.isKeyFrame);
@@ -307,7 +369,12 @@ export async function generateStoryboard(runId: string): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     const beatCount = run.script?.beats.length ?? 5;
-    const storyboard = generateStoryboardFrames(runId, beatCount, run.brief.aspectRatio, FRAME_SCORE_THRESHOLD);
+    const storyboard = generateStoryboardFrames(
+      runId,
+      beatCount,
+      run.brief.aspectRatio,
+      FRAME_SCORE_THRESHOLD,
+    );
     const keyFrame = run.frames.find((f) => f.isKeyFrame);
     run.frames = keyFrame ? [keyFrame, ...storyboard] : storyboard;
     run.currentStage = "storyboard";
@@ -321,12 +388,22 @@ export async function generateStoryboard(runId: string): Promise<Run> {
   return realFetch<Run>(`/api/runs/${runId}/storyboard`, { method: "POST" });
 }
 
-export async function regenerateFrame(runId: string, frameId: string, note: string): Promise<Run> {
+export async function regenerateFrame(
+  runId: string,
+  frameId: string,
+  note: string,
+): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     const existing = run.frames.find((f) => f.id === frameId);
-    if (!existing) throw new ApiError("That frame could not be found on this run.");
-    const [replacement] = generateStoryboardFrames(runId, 2, run.brief.aspectRatio, 0);
+    if (!existing)
+      throw new ApiError("That frame could not be found on this run.");
+    const [replacement] = generateStoryboardFrames(
+      runId,
+      2,
+      run.brief.aspectRatio,
+      0,
+    );
     replacement.id = existing.id;
     replacement.beatIndex = existing.beatIndex;
     replacement.isKeyFrame = existing.isKeyFrame;
@@ -349,8 +426,13 @@ export async function regenerateFrame(runId: string, frameId: string, note: stri
 export async function generatePackForRun(runId: string): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
-    if (!run.videoPrompt) throw new ApiError("This run doesn't have a scored video prompt yet.");
-    run.pack = generatePack(run.brief.topic, getBrandKitFromStore(), run.videoPrompt);
+    if (!run.videoPrompt)
+      throw new ApiError("This run doesn't have a scored video prompt yet.");
+    run.pack = generatePack(
+      run.brief.topic,
+      getBrandKitFromStore(),
+      run.videoPrompt,
+    );
     run.currentStage = "pack";
     run.jobStatus = "needs_review";
     run.aiCallLog.push(generateAiCallLogEntry("pack", "text", 0.005));
@@ -361,7 +443,10 @@ export async function generatePackForRun(runId: string): Promise<Run> {
   return realFetch<Run>(`/api/runs/${runId}/pack`, { method: "POST" });
 }
 
-export async function updatePack(runId: string, patch: Partial<Pack>): Promise<Run> {
+export async function updatePack(
+  runId: string,
+  patch: Partial<Pack>,
+): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     if (!run.pack) throw new ApiError("This run doesn't have a pack yet.");
@@ -369,7 +454,10 @@ export async function updatePack(runId: string, patch: Partial<Pack>): Promise<R
     saveRunToStore(run);
     return delay(run, 300);
   }
-  return realFetch<Run>(`/api/runs/${runId}/pack`, { method: "PATCH", body: JSON.stringify(patch) });
+  return realFetch<Run>(`/api/runs/${runId}/pack`, {
+    method: "PATCH",
+    body: JSON.stringify(patch),
+  });
 }
 
 export async function approvePack(runId: string): Promise<Run> {
@@ -394,7 +482,21 @@ export async function getBrandKit(): Promise<BrandKit> {
 
 export async function saveBrandKit(brandKit: BrandKit): Promise<BrandKit> {
   if (isSampleMode()) return delay(saveBrandKitToStore(brandKit), 400);
-  return realFetch<BrandKit>("/api/brand-kit", { method: "PUT", body: JSON.stringify(brandKit) });
+  return realFetch<BrandKit>("/api/brand-kit", {
+    method: "PUT",
+    body: JSON.stringify(brandKit),
+  });
 }
 
 export { placeholderImageUrl };
+
+export async function getHealth(): Promise<{
+  mode: string;
+  testMode: boolean;
+  keyPresent: boolean;
+}> {
+  return realFetch("/api/health");
+}
+export async function resumeRun(id: string): Promise<Run> {
+  return realFetch(`/api/runs/${id}/resume`, { method: "POST" });
+}

@@ -91,6 +91,9 @@ export interface Source {
   id: string;
   url: string;
   title: string;
+  originalUrl?: string;
+  resolution?: "direct" | "resolved" | "unresolved";
+  evidenceText?: string;
 }
 
 export interface Fact {
@@ -98,10 +101,14 @@ export interface Fact {
   text: string;
   label: FactLabel;
   sourceId: string;
+  sourceIds?: string[];
+  supportedText?: string[];
+  reviewReason?: string;
   removed: boolean;
 }
 
 export interface ScriptBeat {
+  factIds?: string[];
   id: string;
   startSeconds: number;
   endSeconds: number;
@@ -111,6 +118,8 @@ export interface ScriptBeat {
 }
 
 export interface Script {
+  author?: "ai" | "user";
+  speakingRate?: number;
   version: number;
   beats: ScriptBeat[];
   fullText: string;
@@ -204,16 +213,47 @@ export interface CostEstimate {
 }
 
 export interface AiCallLogEntry {
+  inputTokens?: number;
+  outputTokens?: number;
+  imageCount?: number;
+  searchRequests?: number;
+  durationMs?: number;
+  attempt?: number;
+  error?: string;
+  testMode?: boolean;
+  usageKnown?: boolean;
   id: string;
   stage: RunStage;
   model: string;
   callType: "text" | "image" | "grounding";
   estimatedCostUsd: number;
-  outcome: "success" | "retried" | "failed";
+  outcome: "success" | "retried" | "failed" | "pending" | "interrupted";
   createdAt: string;
 }
 
 export interface Run {
+  job?: {
+    id: string;
+    kind: "story" | "rewrite";
+    status: JobStatus;
+    checkpoint: string;
+    startedAt: string;
+    message: string;
+    error?: string;
+    factId?: string;
+    removed?: boolean;
+    fresh?: boolean;
+  };
+  research?: {
+    status: "cited" | "uncited";
+    createdAt: string;
+    cacheKey: string;
+    reused?: boolean;
+    dropped: { id: string; text: string; reason: string }[];
+  };
+  scriptVersions?: Script[];
+  brandKit?: BrandKit;
+  sampleStages?: boolean;
   id: string;
   userId: string;
   brief: Brief;

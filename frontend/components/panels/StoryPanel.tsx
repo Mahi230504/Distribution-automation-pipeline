@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { Fact, Run, Source } from "@/lib/types";
-import { countWords, scriptLengthCheck } from "@/lib/format";
+import { countWords } from "@/lib/format";
 import Badge from "@/components/Badge";
 
 function SourceChip({ source }: { source: Source | undefined }) {
@@ -16,18 +16,19 @@ function SourceChip({ source }: { source: Source | undefined }) {
       title={source.url}
     >
       {source.title}
+      {source.resolution === "unresolved" ? " (unresolved link)" : ""}
     </a>
   );
 }
 
 function FactRow({
   fact,
-  source,
+  sources,
   busy,
   onToggle,
 }: {
   fact: Fact;
-  source: Source | undefined;
+  sources: Source[];
   busy: boolean;
   onToggle: (removed: boolean) => void;
 }) {
@@ -49,10 +50,15 @@ function FactRow({
         />
       </div>
       <div className="flex flex-wrap items-center gap-1.5">
-        <Badge tone={fact.label === "stated" ? "success" : "neutral"} className="py-0.5">
+        <Badge
+          tone={fact.label === "stated" ? "success" : "neutral"}
+          className="py-0.5"
+        >
           {fact.label}
         </Badge>
-        <SourceChip source={source} />
+        {sources.map((source) => (
+          <SourceChip key={source.id} source={source} />
+        ))}
       </div>
     </div>
   );
@@ -72,7 +78,9 @@ export default function StoryPanel({
   onApprove: () => void;
 }) {
   const [scriptText, setScriptText] = useState(run.script?.fullText ?? "");
-  const [syncedFullText, setSyncedFullText] = useState(run.script?.fullText ?? "");
+  const [syncedFullText, setSyncedFullText] = useState(
+    run.script?.fullText ?? "",
+  );
 
   // Removing a fact rewrites the script server-side, and that rewrite should
   // replace whatever's in the box — resync when the saved script changes,
@@ -85,8 +93,23 @@ export default function StoryPanel({
   }
 
   const targetSeconds = run.script?.targetSeconds ?? run.brief.durationSeconds;
-  const liveWordCount = countWords(scriptText);
-  const lengthCheck = scriptLengthCheck(liveWordCount, targetSeconds);
+  const voiceovers = [
+    ...scriptText.matchAll(
+      /(?:^|\n|\s)VO:\s*([\s\S]*?)(?=ON-SCREEN:|\[\d+:\d+|$)/g,
+    ),
+  ].map((m) => m[1]);
+  const liveWordCount = countWords(
+    voiceovers.length
+      ? voiceovers.join(" ")
+      : /VISUAL:|ON-SCREEN:/.test(scriptText)
+        ? ""
+        : scriptText,
+  );
+  const seconds = Math.round(liveWordCount / (run.script?.speakingRate ?? 2.5));
+  const lengthCheck = {
+    label: `${liveWordCount} words ≈ ${seconds}s, target ${targetSeconds}s`,
+    withinTolerance: Math.abs(seconds - targetSeconds) <= 5,
+  };
   const dirty = scriptText !== (run.script?.fullText ?? "");
 
   return (
@@ -95,16 +118,46 @@ export default function StoryPanel({
         <div>
           <h2 className="text-lg font-semibold">Facts</h2>
           <p className="mt-1 text-sm text-muted">
-            Found with Google Search grounding. Uncheck a fact to remove it and rewrite the script.
+            Citations come from Google Search grounding. Uncheck a fact to
+            rewrite only the beats that use it.
           </p>
         </div>
+        {run.research?.status === "uncited" && (
+          <p role="alert" className="text-warning">
+            Uncited research: no usable grounding metadata was returned.
+            Unsupported facts are not used.
+          </p>
+        )}
+        {run.research?.reused && (
+          <p className="text-xs text-muted">
+            Research reused from the last 24 hours; the script is written for
+            this run.
+          </p>
+        )}
+        {!!run.research?.dropped.length && (
+          <details>
+            <summary>Dropped facts ({run.research.dropped.length})</summary>
+            {run.research.dropped.map((f) => (
+              <p className="text-sm mt-2" key={f.id}>
+                {f.text} — {f.reason}
+              </p>
+            ))}
+          </details>
+        )}
+        {dirty && (
+          <p className="text-warning text-xs">
+            Save your script edits before changing facts or approving.
+          </p>
+        )}
         <div className="flex flex-col gap-2">
           {run.facts.map((fact) => (
             <FactRow
               key={fact.id}
               fact={fact}
-              source={run.sources.find((s) => s.id === fact.sourceId)}
-              busy={busy}
+              sources={run.sources.filter((s) =>
+                (fact.sourceIds ?? [fact.sourceId]).includes(s.id),
+              )}
+              busy={busy || dirty}
               onToggle={(removed) => onToggleFact(fact.id, removed)}
             />
           ))}
@@ -114,12 +167,14 @@ export default function StoryPanel({
       <div className="flex flex-col gap-3 rounded-2xl border border-border bg-surface p-5 sm:p-6">
         <div>
           <h2 className="text-lg font-semibold">Script</h2>
-          <p className="mt-1 text-sm text-muted">Editable. Beats are timestamped for the video model.</p>
+          <p className="mt-1 text-sm text-muted">
+            Editable. Beats are timestamped for the video model.
+          </p>
         </div>
         <textarea
           value={scriptText}
           onChange={(e) => setScriptText(e.target.value)}
-          onBlur={() => dirty && onSaveScript(scriptText)}
+          aria-label="Story script"
           disabled={busy}
           className="min-h-64 flex-1 resize-y rounded-lg border border-border bg-background px-3 py-2.5 font-mono text-xs leading-relaxed outline-none focus:border-accent"
         />
@@ -131,12 +186,26 @@ export default function StoryPanel({
           }`}
         >
           {lengthCheck.label}
-          {!lengthCheck.withinTolerance && " — consider trimming or expanding the script"}
+          {!lengthCheck.withinTolerance &&
+            " — consider trimming or expanding the script"}
         </div>
-        <div>
+        <div className="flex gap-3">
+          <button
+            disabled={busy || !dirty}
+            onClick={() => onSaveScript(scriptText)}
+            className="rounded-lg border border-border px-4 py-2 disabled:opacity-50"
+          >
+            Save script
+          </button>
           <button
             onClick={onApprove}
-            disabled={busy}
+            disabled={
+              busy ||
+              dirty ||
+              run.jobStatus !== "needs_review" ||
+              !run.script ||
+              !run.facts.some((f) => !f.removed)
+            }
             className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong disabled:opacity-60"
           >
             Approve story

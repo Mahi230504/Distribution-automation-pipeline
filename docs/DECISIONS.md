@@ -59,3 +59,20 @@ Why: stated directly by the project owner — the people using this app are not 
 - **`gemini-3.5-flash-lite` over `gemini-3.1-flash-lite` for the scoring model** — both are current and inexpensive, but 3.1 already has a scheduled retirement (2027-05-07) while 3.5 doesn't; picking the one with a longer runway avoids a foreseeable near-term migration.
 - **Reserving `gemini-3-pro-image` as a possible key-frame-only upgrade rather than the default image model** — not asked for, but since the key frame sets the visual identity for every other frame in the run, it's the one image worth spending more on if quality testing in step 4 shows it's needed; storyboard frames (which follow the key frame's lead) are the better place to keep cost down.
 - **API route list and naming** (section 3 of `ARCHITECTURE.md`) — the brief specified the flow's stages but not literal endpoint names; routes were named to mirror the stage names directly (`/story`, `/directions`, `/key-frame`, `/storyboard`, `/pack`, `/approve`) so the API surface stays self-explanatory as the team grows.
+
+
+**2026-09-25 — Step 3: durable local jobs, honest evidence and explicit sample stages**
+
+- Local JSON is single-process, enforced by a process lock. Saved state alone does not make workers safe to run concurrently. Step 5 must add shared job claims and a shared Gemini limiter before scaling out.
+- Checkpoint research, review and script separately. Resume preserves completed work; interrupted provider calls have unknown usage and may need to be repeated. Log each attempt before contacting the provider.
+- Use the official SDK generate-content API to match the requested `groundingMetadata` contract. Request JSON in prompt text, then validate it; do not silently retry parser errors or other non-429 errors.
+- Grounding support passages are model-answer text, not source-page quotations. Fetch metadata-linked pages to obtain evidence; block private network addresses, cap redirects, time and response size. Unavailable evidence is unsupported, not automatically “stated.” Missing grounding fails safely with an uncited warning if no facts can be kept.
+- Fact review is one cheaper-model call that returns a verdict for every fact. Only beats referencing a removed fact are rewritten. Explicit Save script avoids an autosave/approval race and retains prior versions.
+- Cache keys include audience, notes, source links, mode and models as well as owner/topic; changed instructions must not receive stale research. Cache hits reuse research/review but still write a new script.
+- Keep later stages working through explicit sample backend handlers at zero cost, with a SAMPLE label. Never substitute browser samples for API failures. Brand kit JSON persistence supports the existing form; accounts remain step 5.
+- Use `NEXT_PUBLIC_API_URL`, correcting the earlier architecture variable name to match the frontend and user request. The user uses Antigravity; the key file is opened there, never requested in chat.
+- Frontend builds use Next.js's supported webpack builder because the local Turbopack CSS helper encountered a process/port restriction. No UI library was added.
+
+Text model rates reconfirmed 2026-09-25 against [Google pricing](https://ai.google.dev/gemini-api/docs/pricing): main `gemini-3.8-flash` $0.75/$3.75 per million input/output tokens through 2026-12-31; scoring `gemini-3.5-flash-lite` $0.30/$2.50. Main rates rise to $1.50/$7.50 on 2027-01-01, so update settings then. Image model remains the prior documented setting and is never called in step 3. Grounding estimates use $0.014 per reported search query, conservatively without deducting the account-wide allowance. The prior $0.007 Story estimate is superseded by measured call logs and the explicit three-call planning example in ARCHITECTURE.md.
+
+References: [Google grounding guide](https://ai.google.dev/gemini-api/docs/google-search), official installed `@google/genai` type definitions (GenerateContentResponse, GroundingMetadata, HttpRetryOptions). No live generation was performed during implementation without user approval.

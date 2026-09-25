@@ -95,10 +95,10 @@ graph LR
 Some steps (research with grounding, script writing, prompt scoring loops, image generation) take several seconds to over a minute. These run as **background jobs** on the backend rather than making the user's browser wait on one long connection, which is fragile over slow networks and impossible to resume if it drops.
 
 - **Starting a job**: an API call (e.g. `POST /api/runs/:id/story`) creates a job record — saved in the same storage as the run itself, never only in the server's memory — and returns immediately with a job ID.
-- **Polling**: the frontend calls `GET /api/runs/:id/jobs/:jobId` every few seconds until the job's status is no longer `running`. This is simpler and more robust than push-based updates, and works fine at this app's scale (see Scaling, section 6).
+- **Polling**: the frontend calls `GET /api/runs/:id` (the job-specific route is also available) every second while the run status is `queued` or `running`. This is simpler and more robust than push-based updates, and works fine at this app's scale (see Scaling, section 6).
 - **Interruption**: because every job's progress is saved with the run (not just kept in memory), if the backend process restarts — a deploy, a crash, Render recycling the instance — any job that was `running` is marked `interrupted` the next time it's checked, instead of silently vanishing.
 - **Resume**: the user can resume an `interrupted` run from the History page. Resuming re-runs only the specific step that was interrupted, using everything already saved (facts already found, script already written, etc.) — never redoing completed work.
-- **Multiple backend copies**: because no important state lives only in memory, the backend can run as more than one copy behind Render's load balancer without jobs getting lost or duplicated — important as usage grows (section 6).
+- **Multiple backend copies**: saving state alone does not prevent duplicate work. The local JSON implementation enforces one process per data folder. Step 5 must provide shared database job claims and a shared concurrency limit before multiple workers are enabled.
 - **Autopilot** (step 7) uses this exact same job system. Instead of a person clicking "next" at each ★ checkpoint, Autopilot automatically starts the next job the moment the previous one completes — except at cost confirmations and the final approval, where it still pauses for the user, exactly like the manual flow.
 
 ---
@@ -145,7 +145,7 @@ Separately, if the **frontend** has no backend address configured at all (e.g. v
 
 | Variable | Purpose |
 |---|---|
-| `NEXT_PUBLIC_BACKEND_URL` | Address of the backend API. If unset, the frontend shows sample data with a "SAMPLE DATA" badge |
+| `NEXT_PUBLIC_API_URL` | Address of the backend API. If unset, the frontend shows sample data with a "SAMPLE DATA" badge |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public Supabase client config for sign-in (from step 5) |
 
 ---
@@ -178,7 +178,7 @@ Prices below are Google's published Gemini API prices, checked **2026-09-24** (s
 |---|---|---|
 | Fewer storyboard frames | Lower `FRAME_MAX_TOTAL` from 6 to 4 | ≈$0.09 (~23% of run cost) |
 | Fewer automatic frame regenerations | Lower the implicit "regenerate once" retry, or raise `FRAME_SCORE_THRESHOLD` less aggressively so fewer frames fail | ≈$0.045 per regeneration avoided |
-| Research reuse | Already default: identical topic within 24h skips Story stage entirely | ≈$0.007 + avoids a grounding request, per repeat run |
+| Research reuse | Already default: identical research inputs within 24h skip research and fact review; the script is still written for the new run | ≈$0.007 + avoids a grounding request, per repeat run |
 | Fewer prompt rewrite attempts | Lower `PROMPT_MAX_REWRITE_ATTEMPTS` from 3 to 2 | ≈$0.005 |
 | Cheaper image model for storyboard, higher-quality only for the key frame | Use `gemini-3.1-flash-lite-image` for storyboard frames, reserve full quality for the key frame | Image cost per storyboard frame can drop further; exact figure to confirm against current per-model image pricing before implementation |
 | User uploads their own key frame | Free — skips one image generation entirely | $0.045 |
@@ -195,7 +195,7 @@ Prices below are Google's published Gemini API prices, checked **2026-09-24** (s
 | 100 | Gemini's per-project rate limits (requests per minute) start throttling during overlapping runs; Google Search grounding's free monthly allowance (5,000 requests, shared across the whole app) gets used up | Move to a paid Gemini billing tier with higher rate limits; budget for grounding cost beyond the free allowance ($14/1,000 requests) |
 | 100 | The local-JSON-file storage (used before step 5) can't handle concurrent writes safely from multiple backend copies | Must already be on Supabase by this point (planned for step 5, well before this scale is expected) |
 | 1,000 | Gemini's overall request-per-minute and tokens-per-minute quotas become the binding constraint even on a paid tier | Request a quota increase from Google, and/or spread load with request queuing so bursts don't all hit Gemini at once |
-| 1,000 | A single Render backend instance runs out of CPU/memory handling many concurrent long-running jobs | Run multiple backend copies behind Render's load balancer — already possible because no job state lives only in memory (section 4) |
+| 1,000 | A single Render backend instance runs out of CPU/memory handling many concurrent long-running jobs | Run multiple backend copies behind Render's load balancer — after shared job claims and a shared limiter are implemented in step 5 (section 4) |
 | 1,000 | Supabase free/starter tier database connection and storage limits are exceeded | Upgrade the Supabase plan; add connection pooling for the database |
 | 1,000 | Runaway spend if many users run the flow simultaneously with no cap | Per-user daily run and cost limits (step 7) become load-bearing, not just a nice-to-have |
 
@@ -214,3 +214,38 @@ Prices below are Google's published Gemini API prices, checked **2026-09-24** (s
 | Free-tier limits and upgrade triggers | Render free tier: cold starts, limited monthly hours. Supabase free tier: limited database size, storage, and monthly active users (check Supabase's current published free-plan limits close to step 5/6, since providers change these). Gemini: free grounding allowance of 5,000 requests/month (checked 2026-09-24) | 6 (checked before going live), revisited at each scaling milestone (section 8) |
 | Data privacy | Users only ever see their own runs and Brand kit; no run data shared across accounts; source links only ever come from grounding metadata, never invented | 5 |
 | Model retirement handling | Model IDs are environment variables (never hardcoded); health check fails loudly if a configured model no longer exists; `docs/DECISIONS.md` tracks known retirement dates so a model can be swapped before it's shut down | 3 (mechanism), ongoing (monitoring retirement dates) |
+
+
+## Step 3 implementation contract (2026-09-25)
+
+The frontend uses one API client, with no error fallback. With an API URL configured, History, New run, Brand kit and Story read/write backend JSON storage. Direction through Approve are deliberate, zero-cost sample handlers, flagged `sampleStages` and labelled SAMPLE. They never call Gemini, even in live mode. The existing browser zip export remains a sample feature; server export, Telegram and Usage remain for later steps.
+
+### Persistence and jobs
+
+`storage.ts` exposes `init`, `close`, `createRun`, `getRun`, `listRuns`, `updateRun`, `getBrandKit`, `saveBrandKit`, `findResearch`. This is the persistence boundary that Supabase replaces. Every run belongs to the server-assigned `local-user`; browser ownership fields are ignored. Writes are serialized (one at a time) and replace files by atomic rename (readers see a complete old or new file). A process lock refuses a second backend using the same folder. This is local development storage, not a distributed database.
+
+A run stores a job ID, kind (`story` or `rewrite`), status, checkpoint, start time, message, error and saved action inputs. Story checkpoints: `start`, `researched`, `reviewed`, `scripted`; selective rewrites begin at `rewrite`. Startup marks queued/running jobs interrupted. Resume repeats only the unfinished checkpoint. Calls interrupted before their response returns may already have been billed; those costs are marked unknown rather than presented as measured zero. A provider response lost before saving its checkpoint can require another call on resume; exactly-once provider billing cannot be guaranteed.
+
+New routes: `POST /api/runs/:id/resume` resumes an interrupted job; `GET /api/runs/:id/ai-calls` returns its saved call ledger. `POST /story` accepts `{fresh:true}` to bypass research reuse. Job-start endpoints return HTTP 202 and the updated run including its job ID, rather than keeping a connection open for the work.
+
+### Sources, evidence and scripts
+
+Research requests JSON in prompt text with Google Search enabled through the official SDK `models.generateContent` API. This avoids requiring combined search and structured-output support. JSON parsing takes the outermost object and reports a redacted reply prefix on failure; schema validation rejects malformed facts or beats.
+
+Only `groundingChunks[].web` creates sources. `groundingSupports` associates exact generated claim text with chunk indexes. A source stores both original and resolved URLs, resolution state (`direct`, `resolved`, `unresolved`) and retrieved page text. The server follows public HTTPS redirects with bounded time, size and redirect count; private addresses are blocked. Failed Google redirect resolution retains the original URL and marks it unresolved.
+
+A grounding support segment is a cited passage of the generated answer, **not a quote from the publisher**. We therefore retrieve text from those metadata-sourced pages for fact review. The cheaper model checks each claim against that text, with stated/implied/unsupported labels. Missing page evidence forces unsupported regardless of the model label. Unsupported claims are removed and saved in `research.dropped`; missing grounding yields `research.status=uncited`, a visible warning, and no fabricated sources. If no facts survive, the job fails with an explicit explanation.
+
+Scripts retain a `factIds` list per beat, an author (`ai` or `user`), version, narration word count and speaking rate. Fact removal sends only affected beats for rewrite and validates unchanged IDs/times and permitted facts. Other beats remain unchanged. Manual saves preserve the exact entered text plus earlier script versions. Plain pasted narration is one beat; timestamped scripts are parsed into beats. The length check counts VO only, excluding camera directions and on-screen text.
+
+The 24-hour cache includes local owner, topic, audience, source links, notes, test/live mode and writing/review model IDs. This is stricter than topic alone, to avoid reusing research under different instructions or accidentally using test research in live mode. A cache hit still generates a new script.
+
+### Settings and cost
+
+Additional settings: `FRONTEND_ORIGINS` (comma-separated browser origins), `SPEAKING_RATE` (default 2.5 words/second), `GEMINI_RETRY_DELAY_MS`, `TEST_DELAY_MS`, and `MAIN_INPUT_PRICE`, `MAIN_OUTPUT_PRICE`, `SCORING_INPUT_PRICE`, `SCORING_OUTPUT_PRICE` (USD per million tokens), `IMAGE_PRICE`, `SEARCH_REQUEST_PRICE` (USD per request). See `backend/.env.example` for defaults. Test delay is 350ms per call so progress is observable; automated tests can override it. No network calls are made by the AI/source fixture path in test mode.
+
+Each attempt is saved before calling the provider, then completed with token counts, output thinking tokens, image count, estimated search requests, duration, outcome and redacted error. Outcomes now include `pending` and `interrupted` alongside `success`, `retried`, `failed`. The run cost is recalculated from the ledger on every write. Only HTTP 429 is retried, at most twice; SDK automatic retries are disabled for generation.
+
+Story now consists of **three calls**: grounded research, batch review of every fact, and script generation. The earlier $0.007 Story row is a preliminary step-1 assumption, not a measured run price. Example planning allowance: 2,000/2,000 main input/output tokens across research+script, 10,000/1,000 review input/output tokens, and one search request costs $0.0285 ($0.009 main + $0.0055 review + $0.014 search). Larger retrieved pages or multiple search queries increase this. The ledger uses actual returned usage; search query count is an estimate and does not deduct account-wide free allowances. It is not a provider invoice. Test calls are always exactly $0.
+
+Health reports mode, key presence and configured model availability; test mode skips provider checks. Live model errors make health unhealthy. CORS permits only listed browser origins. The development server binds to loopback; accounts, production deployment and central error tracking remain future steps.

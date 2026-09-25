@@ -36,7 +36,7 @@ Every run is saved with whatever stage it has reached, listed on the user's **Hi
 ## 3. Rules this project always follows
 
 - **One repository**, two deployed parts: `/frontend` (Next.js App Router, TypeScript, Tailwind CSS) on Vercel, and `/backend` (Node.js, TypeScript, Express) on Render.
-- **Long-running work happens on the backend.** The frontend asks "is it done yet?" every few seconds ("polling") rather than the backend pushing updates. Every job's progress is saved with its run — never held only in the server's memory — so if the backend restarts mid-job, the run is marked "interrupted" and the user can resume it rather than losing it. This also means the backend can be restarted, redeployed, or run as multiple copies at once without breaking anything.
+- **Long-running work happens on the backend.** The frontend asks "is it done yet?" every few seconds ("polling") rather than the backend pushing updates. Every job's progress is saved with its run — never held only in the server's memory — so if the backend restarts mid-job, the run is marked "interrupted" and the user can resume it rather than losing it. This supports restart and resume. Local JSON is limited to one process; multiple copies require shared database locks in step 5.
 - **Gemini** (Google's AI model family) is called through Google's official `@google/genai` code library. Every model name is stored as an environment variable (a setting kept outside the code, so it can change without a code change), with separate variables for: the main model that writes facts/scripts/prompts, a cheaper model used only for scoring and reviewing, and the image-generation model. `docs/DECISIONS.md` records the exact model names and prices used, and the date they were checked, because AI providers frequently retire old models and change prices. The app's health check (a simple "is everything working?" endpoint) confirms the configured models still exist before the app is trusted to be healthy.
 - **Quality checks are automatic, not manual.** Every AI output that matters is scored against a threshold, with a capped number of automatic retries — both the threshold and the cap are settings, not hardcoded. Users judge finished outcomes, not the AI's intermediate attempts.
 - **Every AI call is logged**: which model, how many tokens (units of text an AI model is billed by) or images, and the estimated cost, using prices kept in settings. Each run shows its running total cost. Before any image is generated, the app shows the estimated cost and requires the user to confirm — image generation is the most expensive part of a run. Limits on frame count, retries, and manual regenerations per run are all settings, so they can be tuned without a code change.
@@ -59,7 +59,7 @@ Every run is saved with whatever stage it has reached, listed on the user's **Hi
   DECISIONS.md          — log of decisions and why they were made
 ```
 
-(`/frontend` exists as of step 2, on sample data only. `/backend` doesn't exist yet — it's created in step 3.)
+Both `/frontend` and `/backend` now exist. Story is implemented; later stages use explicitly labelled sample responses.
 
 ## 5. How to run and test each part
 
@@ -67,8 +67,12 @@ Every run is saved with whatever stage it has reached, listed on the user's **Hi
   - Install once: `npm install` (run from inside `/frontend`).
   - Run locally: `npm run dev`, then open `http://localhost:3000`.
   - Check for mistakes before shipping: `npm run lint` and `npm run build`.
-  - With no `NEXT_PUBLIC_API_URL` set (the default — see `/frontend/.env.example`), every screen runs entirely on realistic sample data with a "SAMPLE DATA" badge, since there's no backend yet. Nothing needs to be installed or running beyond the frontend itself.
-- `/backend`: doesn't exist yet (step 3). Once it does, this section will be kept up to date with its own install/run/test commands, and both parts will support running in **TEST_MODE**, so the whole flow can be tried end-to-end with zero AI cost before ever calling a real AI model.
+  - With no `NEXT_PUBLIC_API_URL` set (the default — see `/frontend/.env.example`), every screen runs entirely on realistic sample data with a "SAMPLE DATA" badge, for a standalone demo. When configured, backend failures are shown and never replaced with samples. Nothing needs to be installed or running beyond the frontend itself.
+- `/backend`: run `npm install`, `npm run dev` from that folder. Production: `npm run build`, then `npm start`. Tests: `npm run build` then `npm test` (uses isolated temporary data and port 4101).
+- Backend settings live in `backend/.env`; copy `.env.example` for a new checkout. `TEST_MODE=true` by default, key empty. Local frontend configuration: `NEXT_PUBLIC_API_URL=http://localhost:4000` in `frontend/.env.local`. Open `http://localhost:3000`.
+- The assistant runs these commands; the user uses Antigravity, not VS Code. Open the key file there and never ask for the key in chat.
+- Local JSON storage allows one backend process. Multiple copies require shared database job locks in step 5. Stopping a backend during a job leaves it resumable after restart.
+- Frontend production builds use Next.js’s webpack builder because Turbopack’s CSS helper hits a local process/port restriction in this environment.
 
 ## 6. The 7-step build plan
 
@@ -76,7 +80,7 @@ Every run is saved with whatever stage it has reached, listed on the user's **Hi
 |---|---|---|
 | 1 | AGENTS.md and architecture docs | ✅ Done |
 | 2 | Frontend with every screen on sample data, deployed to Vercel | 🟨 Frontend built and tested locally on sample data; not yet deployed to Vercel |
-| 3 | Backend, test mode, cost tracking, and the Story stage | ⬜ Not started |
+| 3 | Backend, test mode, cost tracking, and the Story stage | ✅ Built and tested in TEST_MODE, including interruption/resume; live validation awaits a key and approval |
 | 4 | Direction, Look and Storyboard stages | ⬜ Not started |
 | 5 | Pack and Approve stages, Supabase (database, storage, accounts, Brand kit), Telegram sending | ⬜ Not started |
 | 6 | Backend deployed to Render, whole flow live end to end | ⬜ Not started |
