@@ -1,5 +1,9 @@
-import { GoogleGenAI, type GenerateContentResponse } from "@google/genai";
-import { randomUUID } from "node:crypto";
+import {
+  GoogleGenAI,
+  type Part,
+  type GenerateContentResponse,
+} from "@google/genai";
+import { createHash, randomUUID } from "node:crypto";
 import { settings, safeError } from "./settings.js";
 import { storage } from "./storage.js";
 export const sleep = (ms: number) =>
@@ -26,15 +30,38 @@ export function client() {
     httpOptions: { timeout: 60000 },
   });
 }
+export interface CallOptions {
+  stage?: "direction" | "look" | "storyboard";
+  image?: boolean;
+  parts?: Part[];
+  aspectRatio?: "9:16" | "16:9";
+  task?: string;
+  origin?: import("../../frontend/lib/types.js").ChangeOrigin;
+}
 export async function callAI(
   runId: string,
   purpose: string,
   prompt: string,
-  fixture: () => GenerateContentResponse,
+  fixture: () => GenerateContentResponse | Promise<GenerateContentResponse>,
   grounding = false,
   transport?: () => Promise<GenerateContentResponse>,
+  options: CallOptions = {},
 ) {
-  const model = purpose === "review" ? settings.scoring : settings.main;
+  const model = options.image
+    ? settings.image
+    : purpose === "review"
+      ? settings.scoring
+      : settings.main;
+  const stage = options.stage ?? "story";
+  const parts = [{ text: prompt }, ...(options.parts ?? [])];
+  const referenceHashes = (options.parts ?? [])
+    .filter((p) => p.inlineData?.data)
+    .map((p) =>
+      createHash("sha256")
+        .update(Buffer.from(p.inlineData!.data!, "base64"))
+        .digest("hex"),
+    );
+  const jobId = (await storage.getRun(runId)).job?.id;
   for (let attempt = 0; attempt <= settings.retries; attempt++) {
     await acquire();
     const start = Date.now();
@@ -43,9 +70,13 @@ export async function callAI(
       await storage.updateRun(runId, (r) =>
         r.aiCallLog.push({
           id: callId,
-          stage: "story",
+          stage,
+          task: options.task ?? purpose,
+          jobId,
+          origin: attempt ? "provider retry" : options.origin,
+          referenceHashes,
           model,
-          callType: grounding ? "grounding" : "text",
+          callType: options.image ? "image" : grounding ? "grounding" : "text",
           estimatedCostUsd: 0,
           outcome: "pending",
           createdAt: new Date().toISOString(),
@@ -64,14 +95,23 @@ export async function callAI(
       if (transport) result = await transport();
       else if (settings.test) {
         await sleep(settings.testDelay);
-        result = fixture();
+        result = await fixture();
       } else
         result = await client().models.generateContent({
           model,
-          contents: prompt,
+          contents: [{ role: "user", parts }],
           config: {
             tools: grounding ? [{ googleSearch: {} }] : undefined,
             maxOutputTokens: 6000,
+            ...(options.image
+              ? {
+                  responseModalities: ["TEXT", "IMAGE"],
+                  imageConfig: {
+                    aspectRatio: options.aspectRatio,
+                    imageSize: "1K",
+                  },
+                }
+              : {}),
             httpOptions: { retryOptions: { attempts: 1 } },
           },
         });
@@ -91,26 +131,48 @@ export async function callAI(
       ? (result?.candidates?.[0]?.groundingMetadata?.webSearchQueries?.length ??
         0)
       : 0;
+    const imageCount =
+      result?.candidates?.[0]?.content?.parts?.filter(
+        (p) => !p.thought && p.inlineData?.mimeType?.startsWith("image/"),
+      ).length ?? 0;
+    const imageTokens =
+      u?.candidatesTokensDetails
+        ?.filter((d) => d.modality === "IMAGE")
+        .reduce((sum, d) => sum + (d.tokenCount ?? 0), 0) || imageCount * 1120;
+    const billedTextOutput = options.image
+      ? Math.max(0, output - imageTokens)
+      : output;
     const cost = settings.test
       ? 0
       : (input *
-          (purpose === "review" ? settings.scoringInput : settings.mainInput) +
-          output *
-            (purpose === "review"
-              ? settings.scoringOutput
-              : settings.mainOutput)) /
+          (options.image
+            ? settings.imageInput
+            : purpose === "review"
+              ? settings.scoringInput
+              : settings.mainInput) +
+          billedTextOutput *
+            (options.image
+              ? settings.imageOutput
+              : purpose === "review"
+                ? settings.scoringOutput
+                : settings.mainOutput)) /
           1e6 +
-        searches * settings.searchPrice;
+        searches * settings.searchPrice +
+        imageCount * settings.imagePrice;
     await storage.updateRun(runId, (r) => {
       const index = r.aiCallLog.findIndex((c) => c.id === callId);
       r.aiCallLog[index] = {
         id: callId,
-        stage: "story",
+        stage,
+        task: options.task ?? purpose,
+        jobId,
+        origin: attempt ? "provider retry" : options.origin,
+        referenceHashes,
         model,
-        callType: grounding ? "grounding" : "text",
+        callType: options.image ? "image" : grounding ? "grounding" : "text",
         inputTokens: input,
         outputTokens: output,
-        imageCount: 0,
+        imageCount,
         searchRequests: searches,
         estimatedCostUsd: cost,
         durationMs: Date.now() - start,
@@ -121,8 +183,18 @@ export async function callAI(
         usageKnown: !!u,
         createdAt: new Date(start).toISOString(),
       };
-      if (retry && r.job)
+      if (retry && r.job) {
         r.job.message = `Rate limited. Waiting before retry ${attempt + 1} of ${settings.retries}.`;
+        r.generation?.activities.push({
+          id: randomUUID(),
+          jobId: r.job.id,
+          checkpoint: r.job.checkpoint,
+          message: r.job.message,
+          at: new Date().toISOString(),
+          state: "retrying",
+          origin: "provider retry",
+        });
+      }
     });
     if (retry) {
       await sleep(settings.retryDelay * 2 ** attempt);

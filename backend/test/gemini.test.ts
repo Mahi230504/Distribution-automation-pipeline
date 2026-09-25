@@ -164,3 +164,56 @@ test("Live-price arithmetic includes thinking tokens and grounding without a net
     settings.test = previous;
   }
 });
+
+test("Image estimate separates image output from text/thinking; fresh recovery quote consumes once without any network", async () => {
+  const { settings } = await import("../src/settings.js");
+  const { ensureGeneration, quoteImages, consumeResumeQuote } =
+    await import("../src/generation.js");
+  const prior = settings.test;
+  try {
+    settings.test = false;
+    const raw = response({});
+    raw.candidates![0].content!.parts = [
+      { inlineData: { mimeType: "image/png", data: "eA==" } },
+    ];
+    raw.usageMetadata = {
+      promptTokenCount: 1000,
+      candidatesTokenCount: 1220,
+      thoughtsTokenCount: 50,
+    };
+    await callAI(
+      "test",
+      "image",
+      "",
+      () => raw,
+      false,
+      async () => raw,
+      { stage: "look", image: true },
+    );
+    const log = (await storage.getRun("test")).aiCallLog.at(-1)!;
+    assert.equal(log.imageCount, 1);
+    assert.ok(
+      Math.abs(
+        log.estimatedCostUsd -
+          (settings.imagePrice +
+            (1000 * settings.imageInput) / 1e6 +
+            (150 * settings.imageOutput) / 1e6),
+      ) < 1e-9,
+    );
+    await storage.updateRun("test", (r) => {
+      const g = ensureGeneration(r);
+      r.jobStatus = "interrupted";
+      r.job!.kind = "key";
+      g.revision = 4;
+    });
+    const quote = await quoteImages("test", "key", undefined, "", true);
+    assert.ok(quote.amountUsd > 0);
+    await storage.updateRun("test", (r) => consumeResumeQuote(r, quote.id));
+    await assert.rejects(
+      () => storage.updateRun("test", (r) => consumeResumeQuote(r, quote.id)),
+      /fresh cost confirmation/,
+    );
+  } finally {
+    settings.test = prior;
+  }
+});

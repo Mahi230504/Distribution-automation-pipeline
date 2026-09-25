@@ -11,15 +11,16 @@
   },
   "dependencies": {
     "@google/genai": "latest",
-    "express": "^5.1.0",
+    "cheerio": "^1.1.0",
     "dotenv": "^17.2.0",
-    "zod": "^4.0.0",
-    "cheerio": "^1.1.0"
+    "express": "^5.1.0",
+    "sharp": "^0.35.4",
+    "zod": "^4.0.0"
   },
   "devDependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.0.0",
-    "typescript": "^5.0.0",
-    "tsx": "^4.0.0"
+    "tsx": "^4.0.0",
+    "typescript": "^5.0.0"
   }
 }

@@ -76,3 +76,27 @@ Why: stated directly by the project owner — the people using this app are not 
 Text model rates reconfirmed 2026-09-25 against [Google pricing](https://ai.google.dev/gemini-api/docs/pricing): main `gemini-3.8-flash` $0.75/$3.75 per million input/output tokens through 2026-12-31; scoring `gemini-3.5-flash-lite` $0.30/$2.50. Main rates rise to $1.50/$7.50 on 2027-01-01, so update settings then. Image model remains the prior documented setting and is never called in step 3. Grounding estimates use $0.014 per reported search query, conservatively without deducting the account-wide allowance. The prior $0.007 Story estimate is superseded by measured call logs and the explicit three-call planning example in ARCHITECTURE.md.
 
 References: [Google grounding guide](https://ai.google.dev/gemini-api/docs/google-search), official installed `@google/genai` type definitions (GenerateContentResponse, GroundingMetadata, HttpRetryOptions). No live generation was performed during implementation without user approval.
+
+**2026-09-25 — Step 4: Direction through approved Storyboard only**
+
+- Extend the existing job runner, gateway and storage interface. Keep Story logic intact. Pasted scripts now start with no placeholder directions; the user starts the real Direction job. Pack and Approve remain SAMPLE. An explicit Storyboard approval ends Session 10.3. Existing Step 3 runs at sample Direction/Look/Storyboard can start real Direction without redoing their approved Story.
+- Snapshot the current local Brand kit when generating directions. Keep approved Story facts and script unchanged. Apply the knowledge in `docs/reference/prompting-playbook.md`; no Python or DSPy code is imported.
+- Use a separate saved `generation` record on each run, so legacy sample score fields are never mistaken for real reviews. Every prompt and image attempt links to its call records. A changed direction clears active dependent work but preserves old attempts; changed/rejected Look archives the prior Storyboard.
+- Score 0–100 with validated explanations; calculate overall as the weakest dimension. Defaults: prompt threshold 75 with two rewrites (three versions maximum); frame threshold 70 with one automatic replacement. Stop honestly at the limit. Manual replacements have a shared per-run limit of six, including Look changes.
+- An image quote is a saved, one-use cost confirmation. Bind it to action, run revision, reference image, selected frame, note and current models/prices/limits. Expire it after 15 minutes. Consuming it and starting the job happen in one serialized storage update; repeated confirmation returns the existing run. Estimates include allowed automatic replacements and all three possible HTTP 429 request attempts. They are conservative allowances, not invoices.
+- Live image recovery requires a fresh explicit quote, including when a provider result may have been lost. Saved images and reviews are still reused. Previous unknown charges remain unknown and are not hidden inside a new zero. Failed jobs never retry automatically except for the existing HTTP 429 policy.
+- Keep each generated image and review as separate saved checkpoints. Send actual PNG bytes to image and review requests. Log content hashes (checksums that identify the bytes) to verify the reference wiring without exposing image payloads.
+- Use Sharp, an image-decoding library, to verify PNG/JPEG/WebP content, reject animated images and images over 20 million pixels, remove metadata, and store PNG files under generated IDs. Default upload limit: 5 MB. No user filename becomes a server path. The same decoder/storage path handles provider images. Deterministic test PNGs are generated locally, not fetched from the web.
+- Group excess script beats into ordered, contiguous frame groups; retain every beat ID, including the payoff. The approved key frame counts toward the six-frame default. No saved script is shortened. Generation text inputs are capped at 24,000 characters so oversized inputs fail before an unbudgeted call.
+
+**Models and pricing reverified 2026-09-25, official Google Gemini API documentation**
+
+| Role | Exact configured default | Standard paid estimate |
+|---|---|---|
+| Writing | `gemini-3.8-flash` | $0.75 input / $3.75 output per million tokens through 2026-12-31; $1.50 / $7.50 from 2027-01-01 |
+| Prompt and multimodal frame review | `gemini-3.5-flash-lite` | $0.30 input / $2.50 output per million tokens |
+| Images | `gemini-3.1-flash-image` | $0.50 input and $3 text/thinking output per million tokens, plus $0.067 per 1K image |
+
+Sources: [official pricing](https://ai.google.dev/gemini-api/docs/pricing), [image model](https://ai.google.dev/gemini-api/docs/models/gemini-3.1-flash-image), [Generate Content image guide](https://ai.google.dev/gemini-api/docs/generate-content/image-generation), [review model input types](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite).
+
+The image guide documents real reference-image input and both 9:16 and 16:9. The review model accepts image input. Use the existing official SDK `models.generateContent` path with inline image data and explicit `imageConfig` at 1K. The earlier $0.045 image planning rate described 0.5K and is superseded for Step 4. No premium-model fallback is implemented. Model availability for this particular key, image quality, consistency and live multimodal judgement still require an approved live test; documentation verification does not establish live performance.

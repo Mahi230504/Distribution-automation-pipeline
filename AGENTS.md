@@ -59,7 +59,7 @@ Every run is saved with whatever stage it has reached, listed on the user's **Hi
   DECISIONS.md          — log of decisions and why they were made
 ```
 
-Both `/frontend` and `/backend` now exist. Story is implemented; later stages use explicitly labelled sample responses.
+Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard are implemented. Session 10.3 ends with an approved Storyboard. Pack and Approve remain explicitly labelled SAMPLE.
 
 ## 5. How to run and test each part
 
@@ -69,6 +69,7 @@ Both `/frontend` and `/backend` now exist. Story is implemented; later stages us
   - Check for mistakes before shipping: `npm run lint` and `npm run build`.
   - With no `NEXT_PUBLIC_API_URL` set (the default — see `/frontend/.env.example`), every screen runs entirely on realistic sample data with a "SAMPLE DATA" badge, for a standalone demo. When configured, backend failures are shown and never replaced with samples. Nothing needs to be installed or running beyond the frontend itself.
 - `/backend`: run `npm install`, `npm run dev` from that folder. Production: `npm run build`, then `npm start`. Tests: `npm run build` then `npm test` (uses isolated temporary data and port 4101).
+- Step 4 tests add isolated temporary data on port 4102, image-reference checks and interruption recovery. See `docs/STEP4-TESTS.md`. Image files and all reviews/activity are saved through the existing storage module; local JSON remains single-process.
 - Backend settings live in `backend/.env`; copy `.env.example` for a new checkout. `TEST_MODE=true` by default, key empty. Local frontend configuration: `NEXT_PUBLIC_API_URL=http://localhost:4000` in `frontend/.env.local`. Open `http://localhost:3000`.
 - The assistant runs these commands; the user uses Antigravity, not VS Code. Open the key file there and never ask for the key in chat.
 - Local JSON storage allows one backend process. Multiple copies require shared database job locks in step 5. Stopping a backend during a job leaves it resumable after restart.
@@ -81,7 +82,7 @@ Both `/frontend` and `/backend` now exist. Story is implemented; later stages us
 | 1 | AGENTS.md and architecture docs | ✅ Done |
 | 2 | Frontend with every screen on sample data, deployed to Vercel | 🟨 Frontend built and tested locally on sample data; not yet deployed to Vercel |
 | 3 | Backend, test mode, cost tracking, and the Story stage | ✅ Built and tested in TEST_MODE, including interruption/resume; live validation awaits a key and approval |
-| 4 | Direction, Look and Storyboard stages | ⬜ Not started |
+| 4 | Direction, Look and Storyboard stages | ✅ Built and tested in TEST_MODE; approved Storyboard ends Session 10.3; live validation not run |
 | 5 | Pack and Approve stages, Supabase (database, storage, accounts, Brand kit), Telegram sending | ⬜ Not started |
 | 6 | Backend deployed to Render, whole flow live end to end | ⬜ Not started |
 | 7 | Hardening: Autopilot, per-user daily limits, a Usage page, error tracking, full error states, README | ⬜ Not started |

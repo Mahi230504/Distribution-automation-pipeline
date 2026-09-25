@@ -3,6 +3,7 @@
 import { use, useEffect, useState } from "react";
 import Link from "next/link";
 import {
+  isSampleMode,
   resumeRun,
   approvePack,
   approveStory,
@@ -22,6 +23,7 @@ import {
 } from "@/lib/api";
 import { Pack, Run, RunStage } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
+import GenerationWorkspace from "@/components/GenerationWorkspace";
 import Stepper from "@/components/Stepper";
 import StatusPill from "@/components/StatusPill";
 import LoadingState from "@/components/LoadingState";
@@ -92,6 +94,10 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
     };
   }, [id, jobActive]);
   const busy = loadingLabel !== null || jobActive;
+  const realGeneration =
+    !isSampleMode() &&
+    !!run &&
+    ["direction", "look", "storyboard"].includes(run.currentStage);
 
   async function runAction(label: string, action: () => Promise<Run>) {
     setActionError(null);
@@ -178,12 +184,14 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
         <Stepper currentStage={effectiveStage} />
       </div>
 
-      {run.sampleStages && !["brief", "story"].includes(run.currentStage) && (
-        <span className="text-xs text-warning">
-          SAMPLE — this stage uses sample output with no AI charge until a later
-          build step.
-        </span>
-      )}
+      {run.sampleStages &&
+        !realGeneration &&
+        !["brief", "story"].includes(run.currentStage) && (
+          <span className="text-xs text-warning">
+            SAMPLE — this stage uses sample output with no AI charge until a
+            later build step.
+          </span>
+        )}
       {run.brief.pastedScript && run.script && (
         <p className="text-sm text-muted">
           Your script: {run.script.wordCount} words ≈{" "}
@@ -253,7 +261,10 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
         />
       )}
 
-      {run.currentStage === "direction" && (
+      {realGeneration && (
+        <GenerationWorkspace run={run} busy={busy} onAction={runAction} />
+      )}
+      {!realGeneration && run.currentStage === "direction" && (
         <DirectionPanel
           key={run.id}
           run={run}
@@ -266,7 +277,7 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
         />
       )}
 
-      {run.currentStage === "look" && (
+      {!realGeneration && run.currentStage === "look" && (
         <LookPanel
           key={run.id}
           run={run}
@@ -289,7 +300,7 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
         />
       )}
 
-      {run.currentStage === "storyboard" && (
+      {!realGeneration && run.currentStage === "storyboard" && (
         <StoryboardPanel
           run={run}
           busy={busy}

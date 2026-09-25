@@ -249,3 +249,69 @@ Each attempt is saved before calling the provider, then completed with token cou
 Story now consists of **three calls**: grounded research, batch review of every fact, and script generation. The earlier $0.007 Story row is a preliminary step-1 assumption, not a measured run price. Example planning allowance: 2,000/2,000 main input/output tokens across research+script, 10,000/1,000 review input/output tokens, and one search request costs $0.0285 ($0.009 main + $0.0055 review + $0.014 search). Larger retrieved pages or multiple search queries increase this. The ledger uses actual returned usage; search query count is an estimate and does not deduct account-wide free allowances. It is not a provider invoice. Test calls are always exactly $0.
 
 Health reports mode, key presence and configured model availability; test mode skips provider checks. Live model errors make health unhealthy. CORS permits only listed browser origins. The development server binds to loopback; accounts, production deployment and central error tracking remain future steps.
+
+## Step 4 implementation contract (2026-09-25)
+
+This section supersedes the Step 3 sample contract for Direction, Look and Storyboard only. The practical flow ends at **approved Storyboard**; Pack and Approve remain clearly SAMPLE. Earlier sections describing later stages remain the original plan, not additional implementation in this step.
+
+### Saved data and job flow
+
+The shared types file adds `Run.generation`, a saved record containing:
+
+| Record | Saved information |
+|---|---|
+| Direction choice | Exactly three directions; chosen ID and note on the run; current local Brand kit snapshot |
+| Prompt attempts | Revision, attempt number, exact prompt, negative prompt, constant visual description, direction/note, five validated scores and feedback, linked AI calls, reason for change |
+| Key-frame versions | Image ID/URL, generated or uploaded source, note, approval/rejection/replacement, linked calls |
+| Storyboard | Frame order, all mapped beat IDs, visual instruction, attempts, selected best attempt, six scores/feedback, retry-limit state, approval time |
+| Previous Storyboards | Complete archived frames and reviews after their direction or reference changes |
+| Cost quotes | Action and exact inputs, itemised estimate, limits/prices fingerprint, expiry, consuming job, optional recovery job |
+| Activity | Time, job, checkpoint, message, state and origin: user, automatic prompt improvement, automatic frame regeneration or provider retry |
+
+Job kinds add `directions`, `prompt`, `key`, `key-regenerate`, `board`, `frame-regenerate`. Stage and job-status values are unchanged. Activity states add pending, waiting, retrying and resumed descriptions; these are saved events, not new run statuses. Each job stores completed checkpoints and completion time. Prompt generation and review are separate checkpoints for every version; each image generation and review is separately saved. A mapping checkpoint creates the ordered frame plan before any remaining frame is rendered.
+
+The existing backend runner executes these jobs and the frontend continues polling once per second. Startup marks unfinished jobs interrupted. Resume skips completed checkpoints and also checks for saved outputs when a crash happened between saving an output and marking its checkpoint complete. A saved image awaiting review is reused. Any provider response lost before storage may require another request; its unknown cost remains visible. Live image recovery requires another explicit itemised confirmation. Local JSON still permits exactly one backend process.
+
+All AI tasks use the shared Gemini gateway. It accepts actual image parts for generation and multimodal review (review of images and text together). The generated frame is the first review image, the approved key is the second. Each call log retains stage, task, job, origin, model, request attempt, duration, usage and estimated cost. Hashes identify the submitted image bytes for test assertions; raw requests, internal prompts, secrets and filesystem paths are not UI deliverables.
+
+### New or replaced routes
+
+All return saved data; long-job starts return HTTP 202. Existing Step 3 routes remain.
+
+| Route | Behaviour |
+|---|---|
+| `POST /api/runs/:id/directions` | Approve completed Story (or accept a pasted script) and generate exactly three directions |
+| `POST /api/runs/:id/directions/:directionId/select` | Save choice/note, invalidate dependent work, generate and review a full prompt |
+| `POST /api/runs/:id/image-quotes` | Save itemised quote for key, key-regenerate, board or frame-regenerate; optional `resume` quotes an interrupted/failed job |
+| `POST /api/runs/:id/key-frame` | Consume matching `quoteId` and schedule key-frame generation |
+| `POST /api/runs/:id/key-frame/regenerate` | Consume a fresh quote with written note and schedule a new key version |
+| `POST /api/runs/:id/key-frame/upload` | Decode and validate image contents, store safely, invalidate prior approval/Storyboard; no AI call |
+| `POST /api/runs/:id/key-frame/approve` | Approve the explicit current `keyId`; allow Storyboard cost confirmation |
+| `POST /api/runs/:id/key-frame/reject` | Reject current Look and invalidate its dependent Storyboard |
+| `POST /api/runs/:id/storyboard` | Consume matching quote after Look approval; map beats, generate and review remaining frames |
+| `POST /api/runs/:id/frames/:frameId/regenerate` | Consume frame-specific quote/note and regenerate only that frame, enforcing the per-run manual cap |
+| `POST /api/runs/:id/storyboard/approve` | Approve completed Storyboard and end Session 10.3 without entering a real Pack workflow |
+| `GET /api/images/:assetId` | Serve stored PNG bytes by validated opaque image ID, never by a browser-supplied path |
+| `POST /api/runs/:id/resume` | Existing route now also resumes interrupted or explicitly retried failed generation jobs; live image work requires a fresh recovery quote through its generation route |
+
+The old `GET /cost-estimate` remains only for legacy sample screens; real Step 4 actions use saved `/image-quotes` and cannot use its zero-cost response as authorization.
+
+### Storage and image handling
+
+`storage.ts` adds `saveImage(bytes)` and `readImage(id)` to its existing interface. Default local paths are `backend/data/run-<id>.json` for run, prompt/review/activity/call history, and `backend/data/images/<generated-id>.png` for image files. Application modules never directly read or write runtime files. The storage module remains the replacement boundary. Generated and uploaded images are decoded and re-encoded as PNG; metadata and unsafe filenames are not retained. The server enforces byte and decoded-pixel limits.
+
+### Limits, settings and estimates
+
+New settings (see `backend/.env.example`): `PROMPT_QUALITY_THRESHOLD=75`, `PROMPT_REWRITE_LIMIT=2`, `FRAME_QUALITY_THRESHOLD=70`, `FRAME_AUTO_REGENERATION_LIMIT=1`, `MANUAL_REGENERATION_LIMIT=6`, `MAX_TOTAL_FRAMES=6`, `UPLOAD_SIZE_LIMIT_BYTES=5242880`, `IMAGE_PRICE=0.067`, `IMAGE_INPUT_PRICE=0.5`, `IMAGE_TEXT_OUTPUT_PRICE=3`. Existing writing/review model, token-price and concurrency settings remain. Resolution is explicitly 1K so the image setting matches the quote. All money is USD.
+
+A quote expires after 15 minutes and is valid only for its saved action and inputs. Automatic replacements and up to two HTTP 429 retries per request are included. Consumption and job creation are one serialized update. Double-clicking the same quote does not schedule another job. Quotes are recalculated if model/prices, input revision or key reference changes. Uploads need no paid-action quote.
+
+For a planning example with six images and no replacements: image outputs cost 6 × $0.067 = **$0.402**. Assuming each image request uses 2,000 input and 300 text/thinking output tokens adds $0.0114. Five reviews at 3,000 input/500 output tokens add $0.01075; directions plus one prompt at 2,000 input/1,500 output each add $0.01425; one prompt review at 4,000 input/700 output adds $0.00295. Step 4 then totals approximately **$0.44135**, excluding Story, replacements and rate-limit retries. The earlier Story planning example adds $0.0285, giving about **$0.46985 through Storyboard**. These are stated assumptions, not measured live costs or a finished Pack price.
+
+Confirmation quotes deliberately use larger token allowances (56,000 input and 6,000 output per request) and all allowed request attempts. They can be much higher than that planning example. A provider invoice can differ; the UI calls these estimates. The ledger replaces assumptions with returned usage and image counts. Image tokens are excluded from text-output pricing so they are not double-counted. All TEST_MODE calls and quotes cost exactly zero.
+
+### Test mode and UI
+
+`TEST_SCENARIO` is an optional test-only fixture selector: `pass`, `prompt-improve`, `prompt-fail`, `frame-improve`, `frame-fail`, `provider-error`. It has no effect on live responses. Fixtures return the SDK response shape and local PNG bytes through the same validation, storage, review and UI paths. They make no provider or fixture-image network requests.
+
+Direction/Look/Storyboard have no SAMPLE badge with a backend configured. TEST MODE remains visible. Completed stages can be inspected through local tabs. Expandable histories expose every version, score and call; activity comes from backend state, so reopening preserves it. Costs are shown by stage and by call, with unknown usage identified. Errors never fall back to browser samples. With no backend URL, the original standalone SAMPLE DATA flow still works.

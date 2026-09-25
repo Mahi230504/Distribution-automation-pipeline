@@ -7,7 +7,8 @@ import { storage } from "./storage.js";
 import { health } from "./gemini.js";
 import { recover, startJob, isBusy } from "./jobs.js";
 import { parseScript } from "./script.js";
-import { directions, sampleAction } from "./samples.js";
+import { generationRouter } from "./generation-routes.js";
+import { sampleAction } from "./samples.js";
 const platform = z.enum(["instagram_reels", "youtube_shorts", "linkedin"]);
 const brief = z.object({
   topic: z.string().trim().min(1).max(500),
@@ -53,7 +54,8 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: "7mb" }));
+app.use(express.json({ limit: Math.ceil(settings.uploadBytes * 1.4) + 1024 }));
+app.use(generationRouter);
 app.get("/api/health", async (_req, res) => {
   const h = await health();
   res.status(h.healthy ? 200 : 503).json(h);
@@ -83,7 +85,7 @@ app.post("/api/runs", async (req, res) => {
     script: input.pastedScript
       ? parseScript(input.pastedScript, input.durationSeconds)
       : null,
-    directions: input.pastedScript ? directions() : [],
+    directions: [],
     selectedDirectionId: null,
     directionNote: "",
     videoPrompt: null,
@@ -168,13 +170,6 @@ function sample(route: string, action: string) {
     ),
   );
 }
-sample("/api/runs/:id/directions", "directions");
-sample("/api/runs/:id/directions/:directionId/select", "select");
-sample("/api/runs/:id/key-frame", "key-frame");
-sample("/api/runs/:id/key-frame/upload", "upload");
-sample("/api/runs/:id/key-frame/regenerate", "regenerate");
-sample("/api/runs/:id/storyboard", "storyboard");
-sample("/api/runs/:id/frames/:frameId/regenerate", "frame");
 sample("/api/runs/:id/pack", "pack");
 sample("/api/runs/:id/approve", "approve");
 app.patch("/api/runs/:id/pack", async (req, res) => {
@@ -197,9 +192,7 @@ app.patch("/api/runs/:id/pack", async (req, res) => {
     }),
   );
 });
-app.use((_req, res) =>
-  res.status(404).json({ error: "Route not available in step 3." }),
-);
+app.use((_req, res) => res.status(404).json({ error: "Route not available." }));
 app.use(
   (
     error: unknown,

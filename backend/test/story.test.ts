@@ -140,7 +140,7 @@ test("Story, selective rewrite, user version, cache, restart/resume, script skip
     assert.equal(pasted.currentStage, "direction");
     assert.equal(pasted.script.wordCount, 5);
     assert.equal(pasted.aiCallLog.length, 0);
-    assert.equal(pasted.directions.length, 3);
+    assert.equal(pasted.directions.length, 0); // Step 4 generates real directions in its own persisted job.
     const forbidden = await fetch(`http://127.0.0.1:${port}/api/runs`, {
       headers: { Origin: "https://evil.example" },
     });

@@ -8,6 +8,7 @@ import {
   unlink,
 } from "node:fs/promises";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 import type { Run, BrandKit } from "../../frontend/lib/types.js";
 import { settings } from "./settings.js";
 const root = path.resolve(settings.dataPath);
@@ -35,6 +36,19 @@ function runFile(id: string) {
   return `run-${id}.json`;
 }
 export const storage = {
+  async saveImage(bytes: Buffer) {
+    const id = randomUUID();
+    await mkdir(path.join(root, "images"), { recursive: true });
+    await writeFile(path.join(root, "images", `${id}.png`), bytes, {
+      mode: 0o600,
+      flag: "wx",
+    });
+    return id;
+  },
+  async readImage(id: string) {
+    if (!/^[a-f0-9-]{36}$/.test(id)) throw new Error("Invalid image ID");
+    return readFile(path.join(root, "images", `${id}.png`));
+  },
   async init() {
     await mkdir(root, { recursive: true });
     const lock = await read<{ pid: number }>("server.lock");

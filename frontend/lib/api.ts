@@ -4,7 +4,15 @@
 // short delay instead of calling a real server — see docs/ARCHITECTURE.md
 // section 5 ("Test mode") for why.
 
-import { BrandKit, CostEstimate, Frame, NewRunInput, Pack, Run } from "./types";
+import {
+  BrandKit,
+  CostEstimate,
+  Frame,
+  NewRunInput,
+  Pack,
+  Run,
+  ImageQuote,
+} from "./types";
 import {
   generateAiCallLogEntry,
   generateDirections,
@@ -499,4 +507,49 @@ export async function getHealth(): Promise<{
 }
 export async function resumeRun(id: string): Promise<Run> {
   return realFetch(`/api/runs/${id}/resume`, { method: "POST" });
+}
+
+export function assetUrl(url: string) {
+  return url.startsWith("/api/") ? `${API_URL}${url}` : url;
+}
+export async function requestImageQuote(
+  id: string,
+  action: ImageQuote["action"],
+  note = "",
+  frameId?: string,
+  resume = false,
+): Promise<ImageQuote> {
+  return realFetch(`/api/runs/${id}/image-quotes`, {
+    method: "POST",
+    body: JSON.stringify({ action, note, frameId, resume }),
+  });
+}
+export async function confirmImageQuote(
+  id: string,
+  quote: ImageQuote,
+): Promise<Run> {
+  const route =
+    quote.action === "key"
+      ? "key-frame"
+      : quote.action === "key-regenerate"
+        ? "key-frame/regenerate"
+        : quote.action === "board"
+          ? "storyboard"
+          : `frames/${quote.frameId}/regenerate`;
+  return realFetch(`/api/runs/${id}/${route}`, {
+    method: "POST",
+    body: JSON.stringify({ quoteId: quote.id }),
+  });
+}
+export async function approveKey(id: string, keyId: string): Promise<Run> {
+  return realFetch(`/api/runs/${id}/key-frame/approve`, {
+    method: "POST",
+    body: JSON.stringify({ keyId }),
+  });
+}
+export async function rejectKey(id: string): Promise<Run> {
+  return realFetch(`/api/runs/${id}/key-frame/reject`, { method: "POST" });
+}
+export async function approveStoryboard(id: string): Promise<Run> {
+  return realFetch(`/api/runs/${id}/storyboard/approve`, { method: "POST" });
 }

@@ -213,6 +213,10 @@ export interface CostEstimate {
 }
 
 export interface AiCallLogEntry {
+  task?: string;
+  jobId?: string;
+  origin?: ChangeOrigin;
+  referenceHashes?: string[];
   inputTokens?: number;
   outputTokens?: number;
   imageCount?: number;
@@ -232,9 +236,15 @@ export interface AiCallLogEntry {
 }
 
 export interface Run {
+  generation?: GenerationState;
   job?: {
     id: string;
-    kind: "story" | "rewrite";
+    kind: "story" | "rewrite" | GenerationKind;
+    completed?: string[];
+    quoteId?: string;
+    frameId?: string;
+    note?: string;
+    finishedAt?: string;
     status: JobStatus;
     checkpoint: string;
     startedAt: string;
@@ -285,4 +295,122 @@ export interface NewRunInput {
   sourceLinks: string[];
   notes: string;
   pastedScript: string | null;
+}
+
+// Step 4: saved deliverables. Old score shapes above belong only to standalone samples.
+export type GenerationKind =
+  | "directions"
+  | "prompt"
+  | "key"
+  | "key-regenerate"
+  | "board"
+  | "frame-regenerate";
+export type ChangeOrigin =
+  | "user"
+  | "automatic quality improvement"
+  | "automatic frame regeneration"
+  | "provider retry";
+export interface QualityReview {
+  dimensions: Record<string, { score: number; explanation: string }>;
+  overall: number;
+  threshold: number;
+  passed: boolean;
+  callIds: string[];
+}
+export interface PromptAttempt {
+  id: string;
+  revision: number;
+  attempt: number;
+  prompt: string;
+  negativePrompt: string;
+  directionId?: string;
+  note?: string;
+  createdAt?: string;
+  visualBible: string;
+  review?: QualityReview;
+  callIds: string[];
+  origin: ChangeOrigin;
+}
+export interface ImageAttempt {
+  id: string;
+  assetId: string;
+  imageUrl: string;
+  attempt: number;
+  jobId: string;
+  note: string;
+  origin: ChangeOrigin;
+  source: "generated" | "uploaded";
+  review?: QualityReview;
+  callIds: string[];
+  createdAt: string;
+  approval?: "approved" | "rejected" | "replaced";
+}
+export interface BoardFrame {
+  id: string;
+  order: number;
+  beatIds: string[];
+  instruction: string;
+  isKey: boolean;
+  attempts: ImageAttempt[];
+  selectedAttemptId?: string;
+  complete: boolean;
+  retryLimitReached: boolean;
+}
+export interface GenerationActivity {
+  id: string;
+  jobId: string;
+  checkpoint: string;
+  message: string;
+  at: string;
+  state:
+    | "pending"
+    | "running"
+    | "completed"
+    | "waiting"
+    | "retrying"
+    | "interrupted"
+    | "resumed"
+    | "failed";
+  origin: ChangeOrigin;
+}
+export interface ImageQuote {
+  id: string;
+  action: "key" | "key-regenerate" | "board" | "frame-regenerate";
+  revision: number;
+  keyId?: string;
+  frameId?: string;
+  note: string;
+  expiresAt: string;
+  maxImages: number;
+  amountUsd: number;
+  items: { label: string; quantity: number; amountUsd: number }[];
+  usedByJobId?: string;
+  settingsFingerprint: string;
+  resumeJobId?: string;
+  imageCallsAtQuote?: number;
+}
+export interface GenerationState {
+  revision: number;
+  storyApproved: boolean;
+  directionsReady: boolean;
+  prompts: PromptAttempt[];
+  activePromptId?: string;
+  keys: ImageAttempt[];
+  activeKeyId?: string;
+  approvedKeyId?: string;
+  board: BoardFrame[];
+  archivedBoards: BoardFrame[][];
+  boardApprovedAt?: string;
+  quotes: ImageQuote[];
+  activities: GenerationActivity[];
+  manualRegenerations: number;
+  limits: {
+    promptThreshold: number;
+    promptRewrites: number;
+    frameThreshold: number;
+    autoRegenerations: number;
+    manualRegenerations: number;
+    maxFrames: number;
+    uploadBytes: number;
+  };
 }
