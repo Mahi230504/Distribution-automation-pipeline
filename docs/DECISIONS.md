@@ -104,3 +104,11 @@ The image guide documents real reference-image input and both 9:16 and 16:9. The
 **2026-09-25 — TEST_MODE fixtures must preserve the run topic and visibly distinguish generated artifacts**
 
 Why: a deterministic fixture can validate workflow code while still giving a false product impression if it ignores the user's input or reuses one picture. Story research fixtures now derive their facts, grounding metadata, evidence and script language from the run's topic and audience. Image fixtures now derive their topic label, mapped scene, frame identity and visual variation from the current run. Every selected Storyboard frame must have a distinct stored asset. The image itself says it is simulated and made no Gemini call. These rules improve zero-cost testing without presenting fixtures as evidence of live research or image quality.
+
+**2026-09-25 — Live research validation: prose grounding and Node 22 DNS compatibility**
+
+The saved key passed model-access checks for all three configured models. Two JSON-constrained research requests returned relevant facts but no grounding metadata. A numbered-prose diagnostic returned grounding chunks and supports. Research now requests 5–8 numbered atomic statements, parses them without another model call, and retains JSON parsing for fixtures. Attribution tolerates markdown bold and terminal punctuation differences but never assigns a source based on topic similarity or model-written URLs. Uncited/unsupported results still fail closed.
+
+Live source retrieval also exposed Node 22 requesting an array from the pinned DNS callback. Returning a single-address callback shape caused `ERR_INVALID_IP_ADDRESS`. The callback now supports both shapes using the validated address. Non-HTML/text responses are rejected so PDF bytes cannot masquerade as page evidence. Regression tests cover both DNS shapes and research parsing/attribution. No API key is committed or logged.
+
+The first live full-prompt response also returned `visualBible` as an object instead of the required string. Non-search Direction and prompt-writing calls now send the JSON schema to Gemini as well as validating it locally. Research remains prose because grounding behaved differently under JSON constraints. Errors remain saved and explicit; no silent provider retry was added.

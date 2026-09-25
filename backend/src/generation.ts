@@ -333,6 +333,10 @@ async function jsonCall(
     false,
     undefined,
     {
+      // Non-search generation supports structured output; enforce the same
+      // contract at the provider and again locally before accepting a result.
+      ...(task === "prompt" ? {responseJsonSchema: z.toJSONSchema(promptSchema)} :
+        task === "directions" ? {responseJsonSchema: z.toJSONSchema(directionsSchema)} : {}),
       stage: task.startsWith("frame") ? "storyboard" : "direction",
       task,
       parts,

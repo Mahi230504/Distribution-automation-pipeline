@@ -1,6 +1,14 @@
 import { lookup } from "node:dns/promises";
 import https from "node:https";
 import { load } from "cheerio";
+// Node may request an array during automatic address-family selection.
+// Preserve the pinned, validated address in both lookup callback shapes.
+export function pinnedLookup(address: string): NonNullable<https.RequestOptions["lookup"]> {
+  return (_host, options, callback) => {
+    if (options.all) callback(null, [{ address, family: 4 }]);
+    else callback(null, address, 4);
+  };
+}
 // Public HTTPS only; pin the validated IPv4 address to prevent DNS rebinding.
 export async function publicPage(
   input: string,
@@ -40,10 +48,16 @@ export async function publicPage(
     const req = https.get(
       url,
       {
-        lookup: (_host, _opts, cb) => cb(null, addresses[0].address, 4),
+        lookup: pinnedLookup(addresses[0].address),
         headers: { "User-Agent": "VPOStudio/0.1" },
       },
       (res) => {
+        if ((res.statusCode ?? 500) < 300 &&
+          !/^(text\/html|application\/xhtml\+xml|text\/plain)(;|$)/i.test(res.headers["content-type"] ?? "")) {
+          res.resume();
+          reject(new Error("Source is not a readable HTML or text page"));
+          return;
+        }
         let body = "";
         res.setEncoding("utf8");
         res.on("data", (chunk) => {

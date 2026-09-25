@@ -81,8 +81,8 @@ Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard
 |---|---|---|
 | 1 | AGENTS.md and architecture docs | ✅ Done |
 | 2 | Frontend with every screen on sample data, deployed to Vercel | 🟨 Frontend built and tested locally on sample data; not yet deployed to Vercel |
-| 3 | Backend, test mode, cost tracking, and the Story stage | ✅ Built and tested in TEST_MODE, including interruption/resume; live validation awaits a key and approval |
-| 4 | Direction, Look and Storyboard stages | ✅ Built and tested in TEST_MODE; approved Storyboard ends Session 10.3; live validation not run |
+| 3 | Backend, test mode, cost tracking, and the Story stage | ✅ TEST_MODE tests pass; live research, source review, script, selective rewrite and saved edit validated; see docs/LIVE-VALIDATION.md |
+| 4 | Direction, Look and Storyboard stages | ✅ TEST_MODE tests pass; live Direction and prompt scoring validated; image validation awaits cost confirmation |
 | 5 | Pack and Approve stages, Supabase (database, storage, accounts, Brand kit), Telegram sending | ⬜ Not started |
 | 6 | Backend deployed to Render, whole flow live end to end | ⬜ Not started |
 | 7 | Hardening: Autopilot, per-user daily limits, a Usage page, error tracking, full error states, README | ⬜ Not started |

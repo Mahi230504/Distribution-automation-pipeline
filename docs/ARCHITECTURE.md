@@ -230,7 +230,7 @@ New routes: `POST /api/runs/:id/resume` resumes an interrupted job; `GET /api/ru
 
 ### Sources, evidence and scripts
 
-Research requests JSON in prompt text with Google Search enabled through the official SDK `models.generateContent` API. This avoids requiring combined search and structured-output support. JSON parsing takes the outermost object and reports a redacted reply prefix on failure; schema validation rejects malformed facts or beats.
+Research requests numbered atomic statements with Google Search enabled through the official SDK `models.generateContent` API. Live validation found JSON-constrained research could omit grounding metadata; prose preserved it. A deterministic parser preserves each numbered claim. JSON fixtures remain supported; malformed replies report a redacted prefix. Script and review calls still request JSON. Schema validation rejects malformed facts or beats.
 
 Only `groundingChunks[].web` creates sources. `groundingSupports` associates exact generated claim text with chunk indexes. A source stores both original and resolved URLs, resolution state (`direct`, `resolved`, `unresolved`) and retrieved page text. The server follows public HTTPS redirects with bounded time, size and redirect count; private addresses are blocked. Failed Google redirect resolution retains the original URL and marks it unresolved.
 

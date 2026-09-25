@@ -31,6 +31,7 @@ export function client() {
   });
 }
 export interface CallOptions {
+  responseJsonSchema?: Record<string, unknown>;
   stage?: "direction" | "look" | "storyboard";
   image?: boolean;
   parts?: Part[];
@@ -101,6 +102,10 @@ export async function callAI(
           model,
           contents: [{ role: "user", parts }],
           config: {
+            ...(options.responseJsonSchema ? {
+              responseMimeType: "application/json",
+              responseJsonSchema: options.responseJsonSchema,
+            } : {}),
             tools: grounding ? [{ googleSearch: {} }] : undefined,
             maxOutputTokens: 6000,
             ...(options.image
