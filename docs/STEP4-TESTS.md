@@ -6,7 +6,7 @@ The automated suite passed **22 tests, zero failures** (including nested checks)
 
 | # | Requested check | Performed result |
 |---|---|---|
-| 1 | Approved Story produces three directions | Passed: real Story fixtures kept five facts, then Direction saved exactly three distinct cards |
+| 1 | Approved Story produces three directions | Passed: topic-aware Story fixtures kept five facts, then Direction saved exactly three distinct cards |
 | 2 | Choice and note generate complete prompt | Passed: saved choice/note produced a full timed prompt and negative prompt; browser clicked this path |
 | 3 | Five prompt scores saved and displayed | Passed: API asserts five dimensions; browser shows each score and explanation |
 | 4 | Overall is weakest dimension | Passed: independent minimum assertion; model-supplied overall is ignored; malformed scores are rejected |
@@ -16,7 +16,7 @@ The automated suite passed **22 tests, zero failures** (including nested checks)
 | 8 | Double-click confirmation | Passed: concurrent confirmations returned the same job; one image call; replay after completion created no second image |
 | 9 | Key generation, regeneration, approval, persistence | Passed: two versions retained, previous marked replaced, current approval persists; browser refreshed Look |
 | 10 | Upload makes no AI call | Passed: uploaded decoded PNG left call count unchanged; invalid bytes labelled PNG rejected |
-| 11 | Actual reference reaches frame generation | Passed: gateway hashes of submitted inline bytes matched the stored approved PNG for every remaining frame |
+| 11 | Actual reference reaches frame generation | Passed: gateway hashes of submitted inline bytes matched the stored approved PNG for every remaining frame; all selected TEST_MODE frame assets are distinct |
 | 12 | Actual frame and key reach reviewer | Passed: both hashes matched the stored generated frame and key, in the expected order; six scores saved |
 | 13 | Weak frame regenerates once | Passed: two attempts preserved; failed then passed, each with a review |
 | 14 | Persistent weak frame stops | Passed: two attempts, real overall 48 retained, retry-limit flag true |
@@ -32,6 +32,8 @@ The automated suite passed **22 tests, zero failures** (including nested checks)
 | 24 | Lint and production builds | Passed: frontend lint; frontend webpack production build; backend TypeScript production build |
 
 The pasted-script regression expectation was narrowly updated: it still skips research, preserves narration length and costs zero, but now starts with no placeholder directions. The real Step 4 Direction job creates those cards. No Story research or rewriting behaviour was rebuilt.
+
+After a manual product check exposed coffee-specific Story content and near-identical image placeholders for unrelated topics, the TEST_MODE fixtures were corrected. A “Shoe brand” regression now requires topic-matched facts and script text with no coffee/brewing content. Key-frame and Storyboard fixtures now include the run topic, mapped visual instruction and frame identity, generate distinct saved PNG assets, and explicitly state that they are simulated fixtures with no Gemini image call. A fresh local Shoe-brand run produced five topic-matched facts, no coffee text and five unique selected image assets.
 
 Additional checks: existing Step 3 runs at sample Look can generate real directions while keeping their approved script; a direction change invalidates an earlier image quote. Image cost arithmetic separates image output from text/thinking tokens; a recovery quote is single-use. These pure cost-calculation checks temporarily use live-rate arithmetic with an injected local response, **never a live client or network transport**. API integration and browser tests remain TEST_MODE throughout.
 

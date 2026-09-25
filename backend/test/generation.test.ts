@@ -288,6 +288,12 @@ test("Step4 integration: cost gates, all artifacts, image bytes, retries, invali
           );
           assert.equal(Object.keys(a.review!.dimensions).length, 6);
         }
+        const selectedAssetIds = g.board.map((f) =>
+          f.isKey
+            ? key.assetId
+            : f.attempts.find((a) => a.id === f.selectedAttemptId)!.assetId,
+        );
+        assert.equal(new Set(selectedAssetIds).size, selectedAssetIds.length);
       },
     );
     await t.test(

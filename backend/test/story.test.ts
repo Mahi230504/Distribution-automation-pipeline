@@ -85,6 +85,7 @@ test("Story, selective rewrite, user version, cache, restart/resume, script skip
         (c: any) => c.estimatedCostUsd === 0 && c.inputTokens > 0,
       ),
     );
+    assert.ok(run.facts.every((f: any) => /Coffee brewing/i.test(f.text)));
     const original = structuredClone(run.script.beats);
     await api(
       `/runs/${run.id}/facts`,
@@ -95,7 +96,7 @@ test("Story, selective rewrite, user version, cache, restart/resume, script skip
     assert.notDeepEqual(run.script.beats[0], original[0]);
     assert.deepEqual(run.script.beats.slice(1), original.slice(1));
     const edited = run.script.fullText.replace(
-      "Show brewing detail 2",
+      "Show Coffee brewing detail 2",
       "My hand-edited camera note",
     );
     await api(`/runs/${run.id}/script`, { fullText: edited }, "PATCH");
@@ -141,6 +142,17 @@ test("Story, selective rewrite, user version, cache, restart/resume, script skip
     assert.equal(pasted.script.wordCount, 5);
     assert.equal(pasted.aiCallLog.length, 0);
     assert.equal(pasted.directions.length, 0); // Step 4 generates real directions in its own persisted job.
+
+    const shoes = await api("/runs", {
+      ...brief,
+      topic: "Shoe brand",
+      audience: "Urban runners",
+    });
+    await api(`/runs/${shoes.id}/story`, {});
+    const shoeStory = await done(shoes.id);
+    const shoeCopy = JSON.stringify([shoeStory.facts, shoeStory.script]);
+    assert.match(shoeCopy, /shoe brand/i);
+    assert.doesNotMatch(shoeCopy, /coffee|brewing/i);
     const forbidden = await fetch(`http://127.0.0.1:${port}/api/runs`, {
       headers: { Origin: "https://evil.example" },
     });

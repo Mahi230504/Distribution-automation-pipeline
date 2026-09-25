@@ -538,6 +538,7 @@ async function generateImage(
   instruction: string,
   referenceId?: string,
   origin: ChangeOrigin = "user",
+  fixtureContext?: { label: string; scene: string },
 ) {
   const r = await storage.getRun(id),
     before = r.aiCallLog.map((c) => c.id);
@@ -560,7 +561,13 @@ async function generateImage(
     id,
     "image",
     bounded(instruction),
-    () => imageFixture(r.brief.aspectRatio, used + 1),
+    () =>
+      imageFixture(r.brief.aspectRatio, {
+        topic: r.brief.topic,
+        label: fixtureContext?.label ?? "Generated frame",
+        scene: fixtureContext?.scene ?? instruction,
+        variation: used + 1,
+      }),
     false,
     undefined,
     {
@@ -598,6 +605,8 @@ async function keyJob(id: string) {
         "key-generation",
         `Generate exactly ONE still key frame, aspect ${r.brief.aspectRatio}. Establish the recurring subject/product, setting, composition, palette, light and style. Show the opening moment, not a montage or motion. Do not put narration or editorial overlays in pixels unless explicitly required. Visual bible: ${p.visualBible}. Opening beat: ${JSON.stringify(r.script!.beats[0])}. Brand constraints: ${JSON.stringify(r.brandKit)}. User change: ${note}. Full creative direction: ${p.prompt}`,
         old?.assetId,
+        "user",
+        { label: "Key frame", scene: r.script!.beats[0].visual },
       );
       await storage.updateRun(id, (r) => {
         const g = r.generation!;
@@ -705,6 +714,7 @@ async function frameJob(id: string, frameId: string) {
           `Generate exactly ONE still frame using the attached approved reference image as the visual anchor. Match the recurring subject/product, wardrobe, materials, palette, lighting and style; adapt the composition to this moment. Aspect ${r.brief.aspectRatio}. Do not render narration/editorial overlay text. If multiple beats are mapped, depict one representative moment, preserving their arc. Visual bible: ${p.visualBible}. Mapped visual instruction: ${f.instruction}. Script beats: ${JSON.stringify(r.script!.beats.filter((b) => f.beatIds.includes(b.id)))}. Brand constraints: ${JSON.stringify(r.brandKit)}. Focused change: ${note}`,
           key.assetId,
           origin,
+          { label: `Frame ${f.order + 1}`, scene: f.instruction },
         );
         await storage.updateRun(id, (r) => {
           const f = r.generation!.board.find((f) => f.id === frameId)!;

@@ -51,7 +51,7 @@ export function reviewFixture(keys: readonly string[], weak: boolean) {
           explanation:
             weak && i === 0
               ? "The subject is too small in the composition; use a tighter medium shot to make the action readable."
-              : `The ${k.replaceAll("_", " ")} is supported by the stable apron, warm brown palette and clearly framed coffee preparation in this TEST MODE example.`,
+              : `The ${k.replaceAll("_", " ")} is supported by the stable recurring subject, coordinated palette and clearly framed action in this TEST MODE example.`,
         },
       ]),
     ),
