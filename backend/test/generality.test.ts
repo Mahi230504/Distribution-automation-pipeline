@@ -52,7 +52,7 @@ test("No industry or platform keyword blocks legitimate confirmed briefs", () =>
   ])
     assert.doesNotThrow(() => requireBrief(run(subject, objective)));
 });
-test("Unspecified offerings require details in every industry, not just clothing", () => {
+test("Short briefs do not require duplicate product details; semantic assessment handles essential ambiguity", () => {
   for (const subject of [
     "Software company",
     "Cleaning service",
@@ -61,10 +61,7 @@ test("Unspecified offerings require details in every industry, not just clothing
   ]) {
     const r = run(subject);
     r.effective!.productDetails = "";
-    assert.throws(
-      () => requireBrief(r),
-      /Describe the product, service or subject/,
-    );
+    assert.doesNotThrow(() => requireBrief(r));
   }
 });
 test("Brief assessment reuse is input-bound and does not infer subject from platform", () => {

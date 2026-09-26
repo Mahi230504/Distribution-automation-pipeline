@@ -43,16 +43,7 @@ export default function BriefIdentity({
         {run.effective?.summary ??
           "This older run needs an explicit content interpretation before further generation."}
       </p>
-      <p className="text-sm text-muted">
-        Subject: {run.effective?.subject ?? run.brief.topic} · Objective:{" "}
-        {run.effective?.objective ?? "Not confirmed"} · Platform:{" "}
-        {run.brief.platform} (format only)
-      </p>
-      <p className="text-sm">
-        Run Brand kit: {run.brandKit?.brandName || "None"} ·{" "}
-        {run.brandKit?.characterDescription}
-      </p>
-      {run.briefAssessment && (
+      {!!run.briefAssessment?.issues.length && (
         <div className="border rounded p-3 text-sm space-y-2" role="status">
           <p className="font-medium">
             Brief check:{" "}
@@ -70,8 +61,17 @@ export default function BriefIdentity({
       )}
       <details>
         <summary className="py-2 cursor-pointer">
-          Effective brief and Brand kit — saved snapshot
+          Brief details & Brand kit
         </summary>
+        <p className="text-sm text-muted">
+          Subject: {run.effective?.subject ?? run.brief.topic} · Objective:{" "}
+          {run.effective?.objective ?? "Not confirmed"} · Platform:{" "}
+          {run.brief.platform} (format only)
+        </p>
+        <p className="text-sm">
+          Run Brand kit: {run.brandKit?.brandName || "None"} ·{" "}
+          {run.brandKit?.characterDescription}
+        </p>
         <dl className="grid sm:grid-cols-2 gap-3 text-sm">
           {[
             ["Product / subject details", run.effective?.productDetails],
@@ -110,7 +110,7 @@ export default function BriefIdentity({
         </button>
       ) : (
         <button className="border rounded p-3" onClick={() => setEdit(!edit)}>
-          Edit content interpretation
+          Edit brief
         </button>
       )}
       {reopen && (

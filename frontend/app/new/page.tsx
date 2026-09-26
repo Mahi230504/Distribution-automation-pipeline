@@ -51,8 +51,7 @@ export default function NewRunPage() {
   >("promote");
   const [productDetails, setProductDetails] = useState("");
   const [visualPreferences, setVisualPreferences] = useState("");
-  const [summary, setSummary] = useState("");
-  const [confirmed, setConfirmed] = useState(false);
+
   const [brandSelection, setBrandSelection] = useState<
     "none" | "saved" | "custom"
   >("none");
@@ -89,21 +88,13 @@ export default function NewRunPage() {
   function handleFile(file: File) {
     const reader = new FileReader();
     reader.onload = () => setPastedScript(String(reader.result ?? ""));
+    reader.onerror = () =>
+      setSubmitError("Could not read that file. Try another .txt or .md file.");
     reader.readAsText(file);
   }
 
   function validate(): boolean {
     const next: Record<string, string> = {};
-    if (!confirmed || summary.trim().length < 10)
-      next.interpretation =
-        "Confirm the content interpretation before starting.";
-    if (
-      tab === "topic" &&
-      ["promote", "demonstrate"].includes(objective) &&
-      !productDetails.trim()
-    )
-      next.interpretation =
-        "Describe the product, service or subject and what should be shown before starting.";
     if (!topic.trim()) next.topic = "Give this run a topic.";
     if (durationSeconds < 15 || durationSeconds > 60)
       next.durationSeconds = "Duration must be between 15 and 60 seconds.";
@@ -126,8 +117,9 @@ export default function NewRunPage() {
         productDetails,
         visualPreferences,
         factualConstraints: "No unsupported brand-specific claims",
-        summary,
-        confirmed,
+        summary:
+          `${objective} ${topic.trim()}${audience.trim() ? ` for ${audience.trim()}` : ""}. ${productDetails || notes}`.trim(),
+        confirmed: true,
       },
       brandSelection,
       ...(brandSelection === "custom" ? { brandKit: customBrand } : {}),
@@ -188,96 +180,18 @@ export default function NewRunPage() {
       {submitError && <ErrorBanner message={submitError} />}
 
       <div className="flex flex-col gap-6 rounded-2xl border border-border bg-surface p-5 sm:p-6">
-        <Field label="What should this content achieve?">
-          <select
-            value={objective}
-            onChange={(e) => {
-              setObjective(e.target.value as typeof objective);
-              setConfirmed(false);
-            }}
-            className={inputClass}
-          >
-            {["promote", "explain", "demonstrate", "tell a story"].map((v) => (
-              <option key={v}>{v}</option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Brand kit for this run">
-          <select
-            value={brandSelection}
-            onChange={(e) => {
-              setBrandSelection(e.target.value as typeof brandSelection);
-              if (e.target.value === "custom" && brandKit)
-                setCustomBrand(brandKit);
-              setConfirmed(false);
-            }}
-            className={inputClass}
-          >
-            <option value="none">Continue without a Brand kit</option>
-            <option value="saved">
-              {brandKit?.origin === "demo"
-                ? "Demo preset"
-                : brandKit?.origin === "legacy"
-                  ? "Previously stored kit (origin unknown)"
-                  : "User-saved kit"}
-              : {brandKit?.brandName || "No saved brand"}
-            </option>
-            <option value="custom">Edit a run-specific copy</option>
-          </select>
-        </Field>
-        {brandSelection === "saved" && (
-          <p className="text-sm">
-            {brandKit?.brandName} · {brandKit?.characterDescription}
-          </p>
-        )}
-        {brandSelection === "custom" && (
-          <div className="grid gap-3">
-            {(
-              [
-                "brandName",
-                "characterDescription",
-                "tone",
-                "constraints",
-              ] as const
-            ).map((k) => (
-              <Field key={k} label={k}>
-                <input
-                  value={customBrand[k]}
-                  onChange={(e) =>
-                    setCustomBrand({ ...customBrand, [k]: e.target.value })
-                  }
-                  className={inputClass}
-                />
-              </Field>
-            ))}
-            <Field label="Palette (comma separated)">
-              <input
-                value={customBrand.palette.join(",")}
-                onChange={(e) =>
-                  setCustomBrand({
-                    ...customBrand,
-                    palette: e.target.value.split(",").filter(Boolean),
-                  })
-                }
-                className={inputClass}
-              />
-            </Field>
-            <p className="text-xs">
-              This does not change the global Brand kit.
-            </p>
-          </div>
-        )}
-
         {tab === "topic" && (
-          <Field label="Topic" hint="What is this run about?">
+          <Field
+            label="What would you like to make?"
+            hint="A topic or a short description is enough to start."
+          >
             <input
               className={inputClass}
               value={topic}
               onChange={(e) => {
                 setTopic(e.target.value);
-                setConfirmed(false);
               }}
-              placeholder="e.g. a beginner pottery workshop"
+              placeholder="e.g. a short video introducing my pottery workshop"
             />
             {errors.topic && (
               <span className="text-xs text-danger">{errors.topic}</span>
@@ -296,9 +210,8 @@ export default function NewRunPage() {
                 value={topic}
                 onChange={(e) => {
                   setTopic(e.target.value);
-                  setConfirmed(false);
                 }}
-                placeholder="e.g. a beginner pottery workshop"
+                placeholder="e.g. a short video introducing my pottery workshop"
               />
               {errors.topic && (
                 <span className="text-xs text-danger">{errors.topic}</span>
@@ -345,70 +258,12 @@ export default function NewRunPage() {
           </>
         )}
 
-        <Field
-          label="Product or subject details"
-          hint="What is actually being shown? Leave materials, price and performance unspecified unless you have evidence."
-        >
-          <textarea
-            value={productDetails}
-            onChange={(e) => {
-              setProductDetails(e.target.value);
-              setConfirmed(false);
-            }}
-            className={inputClass}
-          />
-        </Field>
-        <Field label="Visual preferences">
-          <textarea
-            value={visualPreferences}
-            onChange={(e) => setVisualPreferences(e.target.value)}
-            className={inputClass}
-          />
-        </Field>
-        <Field
-          label="What we’re creating"
-          hint="Confirm the subject, objective and specific details for any topic. Platform below controls distribution, not the subject."
-        >
-          <textarea
-            value={summary}
-            onChange={(e) => {
-              setSummary(e.target.value);
-              setConfirmed(false);
-            }}
-            className={inputClass}
-          />
-          <button
-            type="button"
-            className="border rounded p-2"
-            onClick={() => {
-              setSummary(
-                `${objective} ${topic || "the specified product"} for ${audience || "the chosen audience"}, focusing on ${productDetails.trim() || "the subject and visible product details"}. No invented brand-specific claims.`,
-              );
-              setConfirmed(false);
-            }}
-          >
-            Propose interpretation
-          </button>
-        </Field>
-        <label className="text-sm">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(e) => setConfirmed(e.target.checked)}
-          />{" "}
-          I confirm this content interpretation and Brand kit choice
-        </label>
-        {errors.interpretation && (
-          <p role="alert" className="text-warning">
-            {errors.interpretation}
-          </p>
-        )}
-        <Field label="Audience" hint="Who is this for?">
+        <Field label="Audience (optional)" hint="Who is this for?">
           <input
             className={inputClass}
             value={audience}
             onChange={(e) => setAudience(e.target.value)}
-            placeholder="e.g. young adults choosing their everyday style"
+            placeholder="e.g. curious beginners"
           />
         </Field>
 
@@ -425,38 +280,6 @@ export default function NewRunPage() {
                 </option>
               ))}
             </select>
-          </Field>
-
-          <Field label="Target video model">
-            <input
-              className={inputClass}
-              value={targetVideoModel}
-              onChange={(e) => setTargetVideoModel(e.target.value)}
-            />
-            {errors.targetVideoModel && (
-              <span className="text-xs text-danger">
-                {errors.targetVideoModel}
-              </span>
-            )}
-          </Field>
-
-          <Field label="Aspect ratio">
-            <div className="flex gap-2">
-              {(["9:16", "16:9"] as AspectRatio[]).map((ratio) => (
-                <button
-                  key={ratio}
-                  type="button"
-                  onClick={() => setAspectRatio(ratio)}
-                  className={`flex-1 rounded-lg border px-3 py-2 text-sm ${
-                    aspectRatio === ratio
-                      ? "border-accent/40 bg-accent/15 text-accent-strong"
-                      : "border-border text-muted hover:text-foreground"
-                  }`}
-                >
-                  {ratio} {ratio === "9:16" ? "vertical" : "horizontal"}
-                </button>
-              ))}
-            </div>
           </Field>
 
           <Field label="Duration" hint="15–60 seconds">
@@ -482,26 +305,177 @@ export default function NewRunPage() {
           </Field>
         </div>
 
-        <Field
-          label="Source links"
-          hint="Optional, one per line. Facts are still verified against live search results."
-        >
-          <textarea
-            className={`${inputClass} min-h-16 resize-y`}
-            value={sourceLinks}
-            onChange={(e) => setSourceLinks(e.target.value)}
-            placeholder={"https://example.com/article"}
-          />
-        </Field>
+        <details className="rounded-lg border border-border p-4">
+          <summary className="cursor-pointer text-sm font-medium">
+            Optional details & settings
+          </summary>
+          <p className="text-sm text-muted mt-2">
+            Add sources, brand details or visual preferences if they matter.
+            Otherwise we’ll develop the creative approach for you.
+          </p>
+          <div className="grid gap-5 mt-5">
+            <Field label="What should this content achieve?">
+              <select
+                value={objective}
+                onChange={(e) => {
+                  setObjective(e.target.value as typeof objective);
+                }}
+                className={inputClass}
+              >
+                {["promote", "explain", "demonstrate", "tell a story"].map(
+                  (v) => (
+                    <option key={v}>{v}</option>
+                  ),
+                )}
+              </select>
+            </Field>
+            <Field label="Brand kit for this run">
+              <select
+                value={brandSelection}
+                onChange={(e) => {
+                  setBrandSelection(e.target.value as typeof brandSelection);
+                  if (e.target.value === "custom" && brandKit)
+                    setCustomBrand(brandKit);
+                }}
+                className={inputClass}
+              >
+                <option value="none">Continue without a Brand kit</option>
+                <option value="saved">
+                  {brandKit?.origin === "demo"
+                    ? "Demo preset"
+                    : brandKit?.origin === "legacy"
+                      ? "Previously stored kit (origin unknown)"
+                      : "User-saved kit"}
+                  : {brandKit?.brandName || "No saved brand"}
+                </option>
+                <option value="custom">Edit a run-specific copy</option>
+              </select>
+            </Field>
+            {brandSelection === "saved" && (
+              <p className="text-sm">
+                {brandKit?.brandName} · {brandKit?.characterDescription}
+              </p>
+            )}
+            {brandSelection === "custom" && (
+              <div className="grid gap-3">
+                {(
+                  [
+                    "brandName",
+                    "characterDescription",
+                    "tone",
+                    "constraints",
+                  ] as const
+                ).map((k) => (
+                  <Field key={k} label={k}>
+                    <input
+                      value={customBrand[k]}
+                      onChange={(e) =>
+                        setCustomBrand({ ...customBrand, [k]: e.target.value })
+                      }
+                      className={inputClass}
+                    />
+                  </Field>
+                ))}
+                <Field label="Palette (comma separated)">
+                  <input
+                    value={customBrand.palette.join(",")}
+                    onChange={(e) =>
+                      setCustomBrand({
+                        ...customBrand,
+                        palette: e.target.value.split(",").filter(Boolean),
+                      })
+                    }
+                    className={inputClass}
+                  />
+                </Field>
+                <p className="text-xs">
+                  This does not change the global Brand kit.
+                </p>
+              </div>
+            )}
 
-        <Field label="Notes" hint="Optional, anything else worth knowing.">
-          <textarea
-            className={`${inputClass} min-h-16 resize-y`}
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-        </Field>
+            <Field
+              label="Product or subject details"
+              hint="Optional specifics you want included. Unknown claims will be omitted."
+            >
+              <textarea
+                value={productDetails}
+                onChange={(e) => {
+                  setProductDetails(e.target.value);
+                }}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Visual preferences">
+              <textarea
+                value={visualPreferences}
+                onChange={(e) => setVisualPreferences(e.target.value)}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Target video model">
+              <input
+                className={inputClass}
+                value={targetVideoModel}
+                onChange={(e) => setTargetVideoModel(e.target.value)}
+              />
+              {errors.targetVideoModel && (
+                <span className="text-xs text-danger">
+                  {errors.targetVideoModel}
+                </span>
+              )}
+            </Field>
 
+            <Field label="Aspect ratio">
+              <div className="flex gap-2">
+                {(["9:16", "16:9"] as AspectRatio[]).map((ratio) => (
+                  <button
+                    key={ratio}
+                    type="button"
+                    onClick={() => setAspectRatio(ratio)}
+                    className={`flex-1 rounded-lg border px-3 py-2 text-sm ${
+                      aspectRatio === ratio
+                        ? "border-accent/40 bg-accent/15 text-accent-strong"
+                        : "border-border text-muted hover:text-foreground"
+                    }`}
+                  >
+                    {ratio} {ratio === "9:16" ? "vertical" : "horizontal"}
+                  </button>
+                ))}
+              </div>
+            </Field>
+
+            <Field
+              label="Source links"
+              hint="Optional, one per line. Facts are still verified against live search results."
+            >
+              <textarea
+                className={`${inputClass} min-h-16 resize-y`}
+                value={sourceLinks}
+                onChange={(e) => setSourceLinks(e.target.value)}
+                placeholder={"https://example.com/article"}
+              />
+            </Field>
+
+            <Field label="Notes" hint="Optional, anything else worth knowing.">
+              <textarea
+                className={`${inputClass} min-h-16 resize-y`}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+              />
+            </Field>
+          </div>
+        </details>
+        <p className="text-sm text-muted">
+          {durationSeconds}s · {aspectRatio} ·{" "}
+          {objective === "promote" ? "Promotional video" : objective} ·{" "}
+          {brandSelection === "none"
+            ? "No Brand kit"
+            : brandSelection === "saved"
+              ? brandKit?.brandName
+              : customBrand.brandName}
+          . You can review and change the story before images are generated.
+        </p>
         <div className="border-t border-border pt-5">
           <button
             onClick={handleSubmit}

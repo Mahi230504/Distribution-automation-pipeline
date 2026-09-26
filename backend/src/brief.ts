@@ -30,14 +30,6 @@ export function requireBrief(r: Run) {
     throw new Error(
       "Confirm “What we’re creating” and choose a Brand kit before generation.",
     );
-  if (
-    ["promote", "demonstrate"].includes(r.effective.objective) &&
-    !r.effective.productDetails.trim() &&
-    !r.brief.pastedScript
-  )
-    throw new Error(
-      "Describe the product, service or subject and what should be shown in Product / subject details before generation.",
-    );
   if (r.mode !== mode())
     throw new Error(
       `This run contains ${r.mode ?? "unknown"} outputs. Start a new run for ${mode()} generation; changing server mode does not convert saved work.`,

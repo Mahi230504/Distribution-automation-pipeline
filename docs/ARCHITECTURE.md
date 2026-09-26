@@ -396,3 +396,11 @@ No new infrastructure or publishing features were added. See `GENERALIZATION-VAL
 ### Saved-frame recovery
 
 `POST /api/runs/:id/frames/:frameId/restore` selects a previous passing attempt, requiring its ID and the expected current selection. It rejects concurrent/stale changes, does not call AI, preserves all attempts and invalidates Storyboard approval. `restoredFromAttemptId` records recovery. Final Storyboard approval rejects failed critical or visible requirements even when numerical scores are high.
+
+## Simpler creation and review — 2026-09-26
+
+Supersedes the earlier requirement for separate promotional product details and an interpretation confirmation checkbox. New run requires only a topic (plus pasted script on that path). It submits an automatically composed summary from the selected goal, topic and optional details, and saves the existing brief/Brand kit snapshot. Starting the run confirms those inputs. Defaults remain 30 seconds, 9:16, Veo 3.1 and a promotional goal, disclosed before starting; optional settings can change these. No demo kit is applied silently. A generic category-level concept is acceptable; unknown claims are omitted instead of making optional details mandatory. Semantic assessment still catches essential ambiguity or conflicting requirements.
+
+Results and score summaries remain visible; successful detailed reviews, full prompts, model calls and activity history are expandable. Script feedback follows the script rather than preceding it. Errors and failed visible requirements remain visible, with existing recovery actions. Image elements load lazily.
+
+Active-run polling waits for the previous response before scheduling another, using 1.5 seconds when visible and 10 seconds when hidden. Health checks reuse model-availability metadata for five minutes, or ten seconds after an unhealthy result, and coalesce concurrent requests. `checkedAt` reports its verification time. Restart clears the disposable cache; no job data is stored there. Model retirement detection can therefore lag by up to five minutes. No changes to model IDs, generation quality gates, price settings, paid calls or storage format.

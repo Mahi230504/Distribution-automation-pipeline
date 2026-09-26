@@ -29,38 +29,50 @@ function Scores({ review }: { review?: QualityReview }) {
   return (
     <div className="space-y-3">
       <p className={review.passed ? "text-accent-strong" : "text-warning"}>
-        Overall {review.overall}/100 · lowest dimension · threshold{" "}
-        {review.threshold} ·{" "}
+        Quality {review.overall}/100 ·{" "}
         {review.passed ? "Passed" : "Quality threshold not reached"}
       </p>
-      {review.visibleChecks?.map((check, i) => (
-        <div key={i} className="border rounded p-2 text-sm">
-          <strong>
-            {check.observed ? "Observed" : "Not verified"}: {check.requirement}
-          </strong>
-          <p>{check.evidence}</p>
-        </div>
-      ))}
       {review.criticalFailures?.map((f, i) => (
         <p key={i} role="alert" className="text-warning">
           Critical: {label(f.code)} — {f.evidence}
         </p>
       ))}
-      {Object.entries(review.dimensions).map(([name, d]) => (
-        <div key={name}>
-          <div className="flex justify-between gap-3 text-sm">
-            <span className="capitalize">{label(name)}</span>
-            <strong>{d.score}/100</strong>
+      {review.visibleChecks
+        ?.filter((c) => !c.observed)
+        .map((c, i) => (
+          <p key={i} role="alert" className="text-warning text-sm">
+            {c.requirement}: {c.evidence}
+          </p>
+        ))}
+      <details>
+        <summary className="cursor-pointer py-2 text-sm text-muted">
+          Review details
+        </summary>
+        {review.visibleChecks?.map((check, i) => (
+          <div key={i} className="border rounded p-2 text-sm">
+            <strong>
+              {check.observed ? "Observed" : "Not verified"}:{" "}
+              {check.requirement}
+            </strong>
+            <p>{check.evidence}</p>
           </div>
-          <div className="h-1.5 my-2 rounded bg-background">
-            <div
-              className="h-full rounded bg-accent"
-              style={{ width: `${d.score}%` }}
-            />
+        ))}
+        {Object.entries(review.dimensions).map(([name, d]) => (
+          <div key={name}>
+            <div className="flex justify-between gap-3 text-sm">
+              <span className="capitalize">{label(name)}</span>
+              <strong>{d.score}/100</strong>
+            </div>
+            <div className="h-1.5 my-2 rounded bg-background">
+              <div
+                className="h-full rounded bg-accent"
+                style={{ width: `${d.score}%` }}
+              />
+            </div>
+            <p className="text-sm text-muted">{d.explanation}</p>
           </div>
-          <p className="text-sm text-muted">{d.explanation}</p>
-        </div>
-      ))}
+        ))}
+      </details>
     </div>
   );
 }
@@ -85,6 +97,8 @@ function ImageView({ image, run }: { image: ImageAttempt; run: Run }) {
       {/* Plain img supports locally served and uploaded images without a remote image allowlist. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
+        loading="lazy"
+        decoding="async"
         src={assetUrl(image.imageUrl)}
         alt={`Storyboard image, attempt ${image.attempt}`}
         className="max-h-[480px] w-full rounded-lg object-contain bg-background"
@@ -98,35 +112,41 @@ function ImageView({ image, run }: { image: ImageAttempt; run: Run }) {
         · Attempt {image.attempt} · {image.source} · {image.origin}{" "}
         {image.approval ? `· ${image.approval}` : ""}
       </p>
-      {image.note && (
-        <p className="text-sm text-muted break-words">Change: {image.note}</p>
-      )}
-      {image.observation && (
-        <details>
-          <summary>Independent pixel observation</summary>
-          <p className="text-sm">{image.observation.description}</p>
-          {image.observation.uncertainties.map((u, i) => (
-            <p className="text-sm text-warning" key={i}>
-              Uncertain: {u}
-            </p>
-          ))}
-        </details>
-      )}
-      {image.intentAudit && (
-        <p className="text-sm">
-          Independent intent check:{" "}
-          {image.intentAudit.passed ? "Passed" : "Not satisfied"} —{" "}
-          {image.intentAudit.reason}
-        </p>
-      )}
+      <details>
+        <summary className="cursor-pointer py-2 text-sm text-muted">
+          Image details & history
+        </summary>
+        {image.note && (
+          <p className="text-sm text-muted break-words">Change: {image.note}</p>
+        )}
+        {image.observation && (
+          <details>
+            <summary>Independent pixel observation</summary>
+            <p className="text-sm">{image.observation.description}</p>
+            {image.observation.uncertainties.map((u, i) => (
+              <p className="text-sm text-warning" key={i}>
+                Uncertain: {u}
+              </p>
+            ))}
+          </details>
+        )}
+        {image.intentAudit && (
+          <p className="text-sm">
+            Independent intent check:{" "}
+            {image.intentAudit.passed ? "Passed" : "Not satisfied"} —{" "}
+            {image.intentAudit.reason}
+          </p>
+        )}
+
+        {image.stillPrompt && (
+          <details>
+            <summary>Exact still-image instructions</summary>
+            <p className="text-sm whitespace-pre-wrap">{image.stillPrompt}</p>
+          </details>
+        )}
+        <Calls run={run} ids={image.callIds} />
+      </details>
       {image.review && <Scores review={image.review} />}
-      {image.stillPrompt && (
-        <details>
-          <summary>Exact still-image instructions</summary>
-          <p className="text-sm whitespace-pre-wrap">{image.stillPrompt}</p>
-        </details>
-      )}
-      <Calls run={run} ids={image.callIds} />
     </div>
   );
 }
@@ -369,12 +389,17 @@ export default function GenerationWorkspace({
           <h2 className="text-lg font-semibold mb-3">
             Your video prompt · version {prompt.attempt}
           </h2>
-          <p className="whitespace-pre-wrap break-words text-sm leading-6 mb-4">
-            {prompt.prompt}
-          </p>
-          <p className="text-sm mb-4">
-            <strong>Avoid:</strong> {prompt.negativePrompt}
-          </p>
+          <details>
+            <summary className="cursor-pointer py-2 text-sm">
+              View optimized prompt
+            </summary>
+            <p className="whitespace-pre-wrap break-words text-sm leading-6 mb-4">
+              {prompt.prompt}
+            </p>
+            <p className="text-sm mb-4">
+              <strong>Avoid:</strong> {prompt.negativePrompt}
+            </p>
+          </details>
           <Scores review={prompt.review} />
           <p className="text-sm text-warning">
             {prompt.mode === "test"
@@ -386,29 +411,39 @@ export default function GenerationWorkspace({
           {prompt.stopReason && (
             <p className="text-warning">{prompt.stopReason}</p>
           )}
-          <label className="block mt-4">
-            Improve this prompt before images
-            <textarea
-              value={promptNote}
-              onChange={(e) => setPromptNote(e.target.value)}
-              className="block w-full p-3 border rounded"
-            />
-          </label>
-          <button
-            className={button}
-            disabled={busy || !promptNote.trim()}
-            onClick={() =>
-              onAction("Revising prompt", () =>
-                repairAction(run.id, "prompt/revise", {
-                  promptId: prompt.id,
-                  note: promptNote,
-                }),
-              )
-            }
-          >
-            Revise prompt
-          </button>
-          <Calls run={run} ids={prompt.callIds} />
+          <details className="mt-3">
+            <summary className="cursor-pointer py-2 text-sm">
+              Want to change the creative approach?
+            </summary>
+            <label className="block mt-4">
+              What would you like changed?
+              <textarea
+                value={promptNote}
+                onChange={(e) => setPromptNote(e.target.value)}
+                className="block w-full p-3 border rounded"
+              />
+            </label>
+            <button
+              className={button}
+              disabled={busy || !promptNote.trim()}
+              onClick={() =>
+                onAction("Revising prompt", () =>
+                  repairAction(run.id, "prompt/revise", {
+                    promptId: prompt.id,
+                    note: promptNote,
+                  }),
+                )
+              }
+            >
+              Revise prompt
+            </button>
+          </details>
+          <details>
+            <summary className="cursor-pointer py-2 text-sm text-muted">
+              Generation costs
+            </summary>
+            <Calls run={run} ids={prompt.callIds} />
+          </details>
           <details className="mt-5">
             <summary className="cursor-pointer py-2">
               Every prompt version ({g!.prompts.length})
@@ -769,22 +804,23 @@ export default function GenerationWorkspace({
       )}
       {g && (
         <section className={box}>
-          <h2 className="text-lg font-semibold">Backend activity</h2>
+          <h2 className="text-lg font-semibold">Progress</h2>
           <p className="my-2 text-sm">
             {run.job?.finishedAt &&
               `Elapsed ${Math.round((Date.parse(run.job.finishedAt) - Date.parse(run.job.startedAt)) / 1000)}s · `}
-            {run.job?.message} · {run.jobStatus} · checkpoint:{" "}
-            {g.activities.findLast(
-              (a) =>
-                a.checkpoint === run.job?.checkpoint && a.state === "running",
-            )?.message ?? run.job?.message}
+            {run.job?.message}
           </p>
-          <p className="text-sm text-muted">
-            Prompt threshold {g.limits.promptThreshold}, up to{" "}
-            {g.limits.promptRewrites} rewrites. Frame threshold{" "}
-            {g.limits.frameThreshold}, up to {g.limits.autoRegenerations}{" "}
-            automatic replacements. Maximum {g.limits.maxFrames} total frames.
-          </p>
+          <details>
+            <summary className="cursor-pointer py-2 text-sm text-muted">
+              Quality settings
+            </summary>
+            <p className="text-sm text-muted">
+              Prompt threshold {g.limits.promptThreshold}, up to{" "}
+              {g.limits.promptRewrites} rewrites. Frame threshold{" "}
+              {g.limits.frameThreshold}, up to {g.limits.autoRegenerations}{" "}
+              automatic replacements. Maximum {g.limits.maxFrames} total frames.
+            </p>
+          </details>
           {["failed", "interrupted"].includes(run.jobStatus) &&
             run.job &&
             ["key", "key-regenerate", "board", "frame-regenerate"].includes(
@@ -815,7 +851,7 @@ export default function GenerationWorkspace({
               Retry from saved checkpoint
             </button>
           )}
-          <details className="mt-4" open>
+          <details className="mt-4">
             <summary className="cursor-pointer py-2">
               Saved activity history ({g.activities.length})
             </summary>

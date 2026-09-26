@@ -1,3 +1,4 @@
+import { cachedHealth } from "./health-cache.js";
 import {
   GoogleGenAI,
   type Part,
@@ -230,7 +231,7 @@ export function parseReply(response: GenerateContentResponse): unknown {
     );
   }
 }
-export async function health() {
+export const health = cachedHealth(async () => {
   const models: Record<string, { exists: boolean | null; error?: string }> = {};
   for (const model of [settings.main, settings.scoring, settings.image]) {
     if (settings.test) models[model] = { exists: null };
@@ -248,5 +249,6 @@ export async function health() {
     keyPresent: !!settings.key,
     models,
     healthy: settings.test || Object.values(models).every((m) => m.exists),
+    checkedAt: new Date().toISOString(),
   };
-}
+});

@@ -78,21 +78,28 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
   useEffect(() => {
     if (!jobActive) return;
     let cancelled = false;
-    const timer = setInterval(() => {
-      getRun(id)
-        .then((data) => {
-          if (!cancelled) {
-            setRun(data);
-            setLoadError(null);
-          }
-        })
-        .catch((e) => {
-          if (!cancelled) setLoadError(e.message);
-        });
-    }, 1000);
+    let timer: ReturnType<typeof setTimeout>;
+    async function poll() {
+      try {
+        const data = await getRun(id);
+        if (!cancelled) {
+          setRun(data);
+          setLoadError(null);
+        }
+      } catch (e) {
+        if (!cancelled)
+          setLoadError(
+            e instanceof Error ? e.message : "Could not load progress.",
+          );
+      } finally {
+        if (!cancelled)
+          timer = setTimeout(poll, document.hidden ? 10000 : 1500);
+      }
+    }
+    timer = setTimeout(poll, 1500);
     return () => {
       cancelled = true;
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [id, jobActive]);
   const busy = loadingLabel !== null || jobActive;
@@ -241,9 +248,6 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
       {!isSampleMode() && (
         <BriefIdentity run={run} busy={busy} onAction={runAction} />
       )}
-      {run.currentStage === "story" && !isSampleMode() && (
-        <ScriptFeedbackPanel run={run} busy={busy} onAction={runAction} />
-      )}
       {run.currentStage === "brief" && (
         <BriefPanel
           run={run}
@@ -276,6 +280,10 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
             )
           }
         />
+      )}
+
+      {run.currentStage === "story" && !isSampleMode() && (
+        <ScriptFeedbackPanel run={run} busy={busy} onAction={runAction} />
       )}
 
       {realGeneration && (

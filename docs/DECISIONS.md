@@ -163,3 +163,9 @@ Configured model IDs and official price sources remain those verified on 2026-09
 ### 2026-09-26 — Recover after an unsuccessful manual frame change
 
 Live fine-grained image feedback exhausted its cap. Added a version-checked restore action for earlier passing frame attempts, without deleting failures or spending again. Final approval rejects unresolved visual failures; scores alone cannot authorize it. Live generalization evidence and all costs are in GENERALIZATION-VALIDATION.md.
+
+## 2026-09-26 — Reduce user work, preserve automatic verification
+
+The user found the explicit interpretation form and always-visible diagnostic panels exhausting. Removed repeated summary entry, confirmation checkbox and mandatory product-details field. A short topic is sufficient for a generic concept without invented claims. Optional fields and technical review details remain available through expandable sections. Essential conflicts still require clarification. The existing promotional default is disclosed; other objectives remain available in settings.
+
+Keep independent visual checks after they caught real errors; do not remove them merely to claim faster AI generation. Instead eliminate overlapping polling and repeated provider model-metadata queries. Health cache: five-minute healthy TTL, ten-second unhealthy TTL, shared in-flight request, checkedAt timestamp. This trades at most five minutes of model-availability freshness for substantially less repeated provider traffic. No live AI output was regenerated for this UI pass.
