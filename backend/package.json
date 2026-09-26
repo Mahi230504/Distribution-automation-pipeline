@@ -7,7 +7,7 @@
     "dev": "tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/backend/src/server.js",
-    "test": "tsx --test test/*.test.ts"
+    "test": "TEST_MODE=true tsx --test test/*.test.ts"
   },
   "dependencies": {
     "@google/genai": "latest",

@@ -25,34 +25,18 @@ export const emptyBrand: BrandKit = {
 };
 export const mode = () =>
   settings.test ? ("test" as const) : ("live" as const);
-export function brandConflict(subject: string, brand?: BrandKit) {
-  return (
-    /clothing|apparel|fashion|shoe|sneaker|garment/i.test(subject) &&
-    !/coffee|barista|cafe|café/i.test(subject) &&
-    /coffee|barista|cafe|café/i.test(
-      `${brand?.brandName ?? ""} ${brand?.characterDescription ?? ""}`,
-    )
-  );
-}
 export function requireBrief(r: Run) {
   if (!r.effective?.confirmed)
     throw new Error(
       "Confirm “What we’re creating” and choose a Brand kit before generation.",
     );
   if (
-    r.effective.objective === "promote" &&
-    /^(clothing|shoe|fashion|apparel|footwear)( brand)?$/i.test(
-      r.effective.subject.trim(),
-    ) &&
+    ["promote", "demonstrate"].includes(r.effective.objective) &&
     !r.effective.productDetails.trim() &&
     !r.brief.pastedScript
   )
     throw new Error(
-      "Specify which clothing or shoe product to show in Product details, then confirm the brief. No generation has started.",
-    );
-  if (brandConflict(r.effective.subject, r.brandKit))
-    throw new Error(
-      "The coffee/barista Brand kit conflicts with this clothing or shoe brief. Use no kit or edit a run-specific copy.",
+      "Describe the product, service or subject and what should be shown in Product / subject details before generation.",
     );
   if (r.mode !== mode())
     throw new Error(
@@ -71,44 +55,6 @@ export function semanticBrief(r: Run) {
     factualConstraints: r.effective?.factualConstraints ?? "",
     summary: r.effective?.summary ?? r.brief.notes,
   };
-}
-export function platformSubject(r: Run) {
-  return /instagram|social media|marketing metrics|reels|engagement|analytics/i.test(
-    r.effective?.subject ?? r.brief.topic,
-  );
-}
-export function irrelevantFact(r: Run, text: string) {
-  return (
-    !platformSubject(r) &&
-    /instagram|\breels\b|social media|engagement metrics|aspect ratio|1080|1920|shares per day/i.test(
-      text,
-    )
-  );
-}
-export function criticalText(r: Run, text: string) {
-  const failures: { code: string; evidence: string }[] = [];
-  if (
-    !platformSubject(r) &&
-    /analytics dashboard|instagram engagement|gen z use instagram|daily shares|social media interface|share icons|metrics meters/i.test(
-      text,
-    )
-  )
-    failures.push({
-      code: "wrong_subject",
-      evidence:
-        "Platform analytics/interface content replaces the approved subject.",
-    });
-  if (
-    /clothing|shoe|fashion|garment|sneaker/i.test(
-      r.effective?.subject ?? r.brief.topic,
-    ) &&
-    /barista|coffee brewing|coffee beans/i.test(text)
-  )
-    failures.push({
-      code: "brand_contamination",
-      evidence: "Coffee/barista content is unrelated to this product.",
-    });
-  return failures;
 }
 export function assertVersion(
   r: Run,

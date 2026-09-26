@@ -98,24 +98,12 @@ export default function NewRunPage() {
       next.interpretation =
         "Confirm the content interpretation before starting.";
     if (
-      brandSelection !== "none" &&
-      /clothing|shoe|fashion|sneaker/i.test(topic) &&
-      /coffee|barista/i.test(
-        JSON.stringify(brandSelection === "saved" ? brandKit : customBrand),
-      )
-    )
-      next.interpretation =
-        "This coffee Brand kit conflicts with your brief. Choose no kit or edit the run copy.";
-    if (
       tab === "topic" &&
-      objective === "promote" &&
-      /^(clothing|shoe|fashion|apparel|footwear)( brand)?$/i.test(
-        topic.trim(),
-      ) &&
+      ["promote", "demonstrate"].includes(objective) &&
       !productDetails.trim()
     )
       next.interpretation =
-        "Specify which product to show in Product details before starting.";
+        "Describe the product, service or subject and what should be shown before starting.";
     if (!topic.trim()) next.topic = "Give this run a topic.";
     if (durationSeconds < 15 || durationSeconds > 60)
       next.durationSeconds = "Duration must be between 15 and 60 seconds.";
@@ -289,7 +277,7 @@ export default function NewRunPage() {
                 setTopic(e.target.value);
                 setConfirmed(false);
               }}
-              placeholder="e.g. a clothing collection launch"
+              placeholder="e.g. a beginner pottery workshop"
             />
             {errors.topic && (
               <span className="text-xs text-danger">{errors.topic}</span>
@@ -310,7 +298,7 @@ export default function NewRunPage() {
                   setTopic(e.target.value);
                   setConfirmed(false);
                 }}
-                placeholder="e.g. a clothing collection launch"
+                placeholder="e.g. a beginner pottery workshop"
               />
               {errors.topic && (
                 <span className="text-xs text-danger">{errors.topic}</span>
@@ -379,7 +367,7 @@ export default function NewRunPage() {
         </Field>
         <Field
           label="What we’re creating"
-          hint="For a broad topic such as clothing brand, confirm an explicit interpretation. Platform below controls distribution, not the subject."
+          hint="Confirm the subject, objective and specific details for any topic. Platform below controls distribution, not the subject."
         >
           <textarea
             value={summary}

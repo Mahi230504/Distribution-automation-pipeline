@@ -1,3 +1,5 @@
+> Latest validation (2026-09-26): a randomly selected gardening brief completed through approved Storyboard. Main run $0.83428610; including diagnostic probes $0.85262580 estimated. See [generalization results](GENERALIZATION-VALIDATION.md) for observed failures, recovery, performance measurements and limits. The earlier clothing validation below remains historical evidence.
+
 # Corrective validation — 2026-09-26
 
 **Current status: repaired live clothing journey reached approved Storyboard on 2026-09-26. Total estimated live cost: $0.57671915. Actual images, script feedback, selective regeneration, browser refresh and backend restart were inspected. Automated review missed a sleeve detail; human inspection and two targeted revisions corrected it.** The older 2026-09-25 results below are historical and do not establish acceptance of the repaired image pipeline.

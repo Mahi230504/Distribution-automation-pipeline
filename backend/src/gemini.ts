@@ -32,7 +32,7 @@ export function client() {
 }
 export interface CallOptions {
   responseJsonSchema?: Record<string, unknown>;
-  stage?: "direction" | "look" | "storyboard";
+  stage?: "story" | "direction" | "look" | "storyboard";
   image?: boolean;
   parts?: Part[];
   aspectRatio?: "9:16" | "16:9";
@@ -102,10 +102,12 @@ export async function callAI(
           model,
           contents: [{ role: "user", parts }],
           config: {
-            ...(options.responseJsonSchema ? {
-              responseMimeType: "application/json",
-              responseJsonSchema: options.responseJsonSchema,
-            } : {}),
+            ...(options.responseJsonSchema
+              ? {
+                  responseMimeType: "application/json",
+                  responseJsonSchema: options.responseJsonSchema,
+                }
+              : {}),
             tools: grounding ? [{ googleSearch: {} }] : undefined,
             maxOutputTokens: 6000,
             ...(options.image

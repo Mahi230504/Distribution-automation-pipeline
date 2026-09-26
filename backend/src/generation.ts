@@ -1,3 +1,4 @@
+import { observeImage, auditVisualIntent } from "./visual-observation.js";
 import { randomUUID, createHash } from "node:crypto";
 import { z } from "zod";
 import type {
@@ -9,13 +10,7 @@ import type {
   ImageAttempt,
   BoardFrame,
 } from "../../frontend/lib/types.js";
-import {
-  requireBrief,
-  semanticBrief,
-  criticalText,
-  assertVersion,
-  mode,
-} from "./brief.js";
+import { requireBrief, semanticBrief, assertVersion, mode } from "./brief.js";
 import { validateNarration } from "./script-feedback.js";
 import { storage } from "./storage.js";
 import { settings } from "./settings.js";
@@ -23,6 +18,8 @@ import { callAI, parseReply } from "./gemini.js";
 import { response } from "./fixtures.js";
 import { imagePart, imageFixture, extractImage, storeImage } from "./images.js";
 import {
+  attachIntentCheck,
+  focusedFeedback,
   promptDimensions,
   frameDimensions,
   validateReview,
@@ -91,8 +88,11 @@ const fingerprint = () =>
   createHash("sha256")
     .update(
       JSON.stringify({
+        visualReviewVersion: 3,
         limits: limits(),
         main: settings.main,
+        mainInput: settings.mainInput,
+        mainOutput: settings.mainOutput,
         scoring: settings.scoring,
         image: settings.image,
         imagePrice: settings.imagePrice,
@@ -177,7 +177,7 @@ export async function quoteImages(
         ? Math.max(0, Math.min(r.script!.beats.length, settings.maxFrames) - 1)
         : 1;
     const imageCalls = count * (1 + settings.autoRegenerations);
-    const reviews = imageCalls;
+    const reviews = imageCalls * 2;
     // Conservative allowance: text capped at 24k chars, image inputs at <=20M pixels.
     // Provider invoices can differ. Includes all allowed 429 request attempts.
     const retryAllowance = 1 + settings.retries;
@@ -197,7 +197,16 @@ export async function quoteImages(
           1e6,
       },
       {
-        label: `${settings.scoring}: multimodal reviews, up to 56,000 input / 6,000 output tokens`,
+        label: `${settings.main}: independent text intent checks, up to 56,000 input / 6,000 output tokens`,
+        quantity: imageCalls * retryAllowance,
+        amountUsd:
+          (imageCalls *
+            retryAllowance *
+            (56000 * settings.mainInput + 6000 * settings.mainOutput)) /
+          1e6,
+      },
+      {
+        label: `${settings.scoring}: independent pixel observations + multimodal reviews, up to 56,000 input / 6,000 output tokens`,
         quantity: reviews * retryAllowance,
         amountUsd:
           (reviews *
@@ -593,7 +602,6 @@ async function promptJob(id: string) {
           r.generation!.limits.promptThreshold,
           result.callIds,
         );
-        review.criticalFailures!.push(...criticalText(r, p.prompt));
         review.passed =
           review.overall >= review.threshold &&
           !review.criticalFailures!.length;
@@ -698,7 +706,7 @@ export function stillPrompt(r: Run, beatIds: string[], note = "") {
     .script!.beats.filter((b) => beatIds.includes(b.id))
     .map((b) => b.visual)
     .join(" Then ");
-  return `Create ONE still product/subject image. Subject: ${r.effective!.subject}. Approved product description: ${r.effective!.productDetails || "Use only the visible subject; no invented brand claims"}. Visible moment: ${visible}. Visual identity, setting, composition and light: ${p.visualBible}. Visual preferences: ${r.effective!.visualPreferences}. Brand constraints: ${r.brandKit?.constraints ?? ""}. Factual constraints: ${r.effective!.factualConstraints}. Frame format: ${r.brief.aspectRatio}. User visual feedback: ${note || "Follow this moment"}. Use any attached image for recurring identity while changing composition for this moment. Keep the scene clean and subject-focused. Editorial narration, subtitles, logos and statistics will be added separately, not rendered here.`;
+  return `Create ONE still product/subject image. Subject: ${r.effective!.subject}. Approved product description: ${r.effective!.productDetails || "Use only the visible subject; no invented brand claims"}. Beat context: ${visible}. Select ONE decisive visible instant from this context; do not combine successive actions into physically impossible pixels. Continuity guide (include only elements appropriate to this instant, not every prop, outfit or camera movement): ${p.visualBible}. Visual preferences: ${r.effective!.visualPreferences}. Brand constraints: ${r.brandKit?.constraints ?? ""}. Factual constraints: ${r.effective!.factualConstraints}. Frame format: ${r.brief.aspectRatio}. Latest visual feedback takes priority over earlier staging, without changing the approved subject: ${note || "Choose the clearest single moment"}. Use any attached image for recurring identity while changing composition for this moment. Keep the scene clean and subject-focused. Keep voice-over and editorial overlays separate. Render functional labels, interfaces or brand identity only when explicitly required by the approved subject and constraints, never because of the publishing platform.`;
 }
 function imageRank(a: ImageAttempt) {
   const review = a.review!;
@@ -721,10 +729,7 @@ async function keyJob(id: string) {
           g = r.generation!;
         if (g.keys.filter((k) => k.jobId === jobId)[i]) return;
         const prior = g.keys.filter((k) => k.jobId === jobId).at(-1);
-        const note = [
-          r.job!.note,
-          prior?.review ? JSON.stringify(prior.review) : "",
-        ]
+        const note = [r.job!.note, focusedFeedback(prior?.review)]
           .filter(Boolean)
           .join(" ");
         const ref =
@@ -732,6 +737,7 @@ async function keyJob(id: string) {
           g.keys.find(
             (k) =>
               k.id === g.activeKeyId &&
+              k.approval !== "rejected" &&
               (k.source === "uploaded" || k.review?.passed),
           );
         const result = await generateImage(
@@ -769,10 +775,13 @@ async function keyJob(id: string) {
         const r = await storage.getRun(id),
           a = r.generation!.keys.filter((k) => k.jobId === jobId)[i];
         if (a.review) return;
+        const observation = await observeImage(id, a, "look");
+        const audit = await auditVisualIntent(id, a, observation, "look");
         const result = await jsonCall(
           id,
           "key-review",
-          reviewInstructions(r, a.stillPrompt!, [r.script!.beats[0].id]),
+          reviewInstructions(r, a.stillPrompt!, [r.script!.beats[0].id]) +
+            ` Independent pixel observation: ${JSON.stringify(observation)}. Reconcile every discrepancy explicitly; the requested description is not evidence.`,
           visualReviewFixture(),
           true,
           [
@@ -788,6 +797,7 @@ async function keyJob(id: string) {
           r.generation!.limits.frameThreshold,
           result.callIds,
         );
+        attachIntentCheck(review, audit);
         await storage.updateRun(id, (r) => {
           const key = r.generation!.keys.find((k) => k.id === a.id)!;
           key.review = review;
@@ -833,8 +843,8 @@ function visualReviewFixture(
       }
     : f;
 }
-function reviewInstructions(r: Run, prompt: string, ids: string[]) {
-  return `Inspect actual pixels: FIRST is generated frame; SECOND, if supplied, is approved identity reference. Review against the ORIGINAL brief, approved visible beat, exact still prompt, and reference. Wrong subject/objective, unrelated brand or unsupported claims MUST appear in criticalFailures regardless of polish. Clothing replaced with phones/analytics dashboards is a critical wrong_subject unless explicitly requested. Require specific visible evidence, not generic praise. Do not require VO or overlays to be rendered. Return JSON {dimensions:{${frameDimensions.map((k) => `"${k}":{"score":0,"explanation":"visible evidence and focused remedy"}`).join(",")}},criticalFailures:[{code:"wrong_subject|wrong_objective|brand_contamination|unsupported_claim",evidence:"specific visible evidence"}]}. Use [] when no critical failure. Brief:${JSON.stringify(semanticBrief(r))}. Approved beats:${JSON.stringify(r.script!.beats.filter((b) => ids.includes(b.id)))}. Exact still prompt:${prompt}. Brand constraints:${JSON.stringify(r.brandKit)}.`;
+export function reviewInstructions(r: Run, prompt: string, ids: string[]) {
+  return `Inspect actual pixels: FIRST is generated frame; SECOND, if supplied, is approved identity reference. Review against the ORIGINAL brief, approved visible beat, exact still prompt, and reference. Wrong subject/objective, unrelated brand or unsupported claims MUST appear in criticalFailures regardless of polish. No category is intrinsically wrong: assess whether the visible subject, activity and setting serve THIS brief, including legitimate interface-led, abstract, service, educational and mixed-subject content. First inspect pixels independently of the prompt; do not repeat requested details as if observed. Return visibleChecks with 2–6 essential requirements derived from the brief, this one still moment and latest feedback, each {requirement,observed,evidence}. Include the subject and the specific requested action/detail. Split compound requirements into atomic checks so a correct object cannot hide a wrong state or action. Every essential adjective or state (for example open/closed, empty/full, connected/disconnected) must be checked independently when specified. Mark observed=false if absent, contradicted or not visually verifiable. A missing required detail fails regardless of high scores. Do not require successive video actions to occur simultaneously. A reference supplies identity, not a requirement to copy its pose or background verbatim. Require specific visible evidence, not generic praise. Do not require VO or overlays to be rendered. Return JSON {dimensions:{${frameDimensions.map((k) => `"${k}":{"score":0,"explanation":"visible evidence and focused remedy"}`).join(",")}},criticalFailures:[{code:"wrong_subject|wrong_objective|brand_contamination|unsupported_claim",evidence:"specific visible evidence"}]}. Use [] when no critical failure. Brief:${JSON.stringify(semanticBrief(r))}. Approved beats:${JSON.stringify(r.script!.beats.filter((b) => ids.includes(b.id)))}. Exact still prompt:${prompt}. Brand constraints:${JSON.stringify(r.brandKit)}.`;
 }
 export function mapBeats(r: Run): BoardFrame[] {
   const beats = r.script!.beats,
@@ -909,14 +919,12 @@ async function frameJob(id: string, frameId: string) {
         const key = g.keys.find((k) => k.id === g.approvedKeyId)!;
         const p = g.prompts.find((p) => p.id === g.activePromptId)!;
         const prior = current.at(-1);
-        const note = index
-          ? Object.entries(prior?.review?.dimensions ?? {})
-              .filter(([, d]) => d.score < g.limits.frameThreshold)
-              .map(
-                ([name, d]) => `${name.replaceAll("_", " ")}: ${d.explanation}`,
-              )
-              .join(" ")
-          : (r.job!.note ?? "");
+        const note = [
+          r.job!.note ?? "",
+          index ? focusedFeedback(prior?.review) : "",
+        ]
+          .filter(Boolean)
+          .join(" ");
         const result = await generateImage(
           id,
           "frame-generation",
@@ -955,10 +963,13 @@ async function frameJob(id: string, frameId: string) {
         const weak =
           settings.fixtureScenario === "frame-fail" ||
           (settings.fixtureScenario === "frame-improve" && index === 0);
+        const observation = await observeImage(id, a, "storyboard");
+        const audit = await auditVisualIntent(id, a, observation, "storyboard");
         const result = await jsonCall(
           id,
           "frame-review",
-          reviewInstructions(r, a.stillPrompt!, f.beatIds),
+          reviewInstructions(r, a.stillPrompt!, f.beatIds) +
+            ` Independent pixel observation: ${JSON.stringify(observation)}. Reconcile every discrepancy explicitly; the requested description is not evidence.`,
           visualReviewFixture(
             weak,
             settings.fixtureScenario === "wrong-subject" ||
@@ -975,6 +986,7 @@ async function frameJob(id: string, frameId: string) {
           g.limits.frameThreshold,
           result.callIds,
         );
+        attachIntentCheck(review, audit);
         await storage.updateRun(id, (r) => {
           const a = r
             .generation!.board.find((f) => f.id === frameId)!

@@ -8,12 +8,7 @@ import { health } from "./gemini.js";
 import { recover, startJob, isBusy } from "./jobs.js";
 import { parseScript } from "./script.js";
 import { generationRouter } from "./generation-routes.js";
-import {
-  interpretationSchema,
-  emptyBrand,
-  brandConflict,
-  mode,
-} from "./brief.js";
+import { interpretationSchema, emptyBrand, mode } from "./brief.js";
 import { repairRouter } from "./repair-routes.js";
 import { sampleAction } from "./samples.js";
 const platform = z.enum(["instagram_reels", "youtube_shorts", "linkedin"]);
@@ -125,8 +120,6 @@ app.post("/api/runs", async (req, res) => {
           : structuredClone(emptyBrand),
     sampleStages: true,
   };
-  if (brandConflict(r.effective!.subject, r.brandKit))
-    r.effective!.confirmed = false;
   res.status(201).json(await storage.createRun(r));
 });
 app.get("/api/runs/:id", async (req, res) =>

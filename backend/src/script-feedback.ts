@@ -4,7 +4,7 @@ import { storage } from "./storage.js";
 import { callAI, parseReply } from "./gemini.js";
 import { response } from "./fixtures.js";
 import { makeScript } from "./script.js";
-import { semanticBrief, criticalText, mode } from "./brief.js";
+import { semanticBrief, mode } from "./brief.js";
 const beat = z.object({
   id: z.string(),
   startSeconds: z.number(),
@@ -20,11 +20,6 @@ export async function validateNarration(
   r: Run,
   beats: ScriptBeat[],
 ) {
-  const errors = criticalText(
-    r,
-    beats.map((b) => `${b.visual} ${b.vo}`).join(" "),
-  );
-  if (errors.length) throw new Error(errors.map((e) => e.evidence).join(" "));
   if (
     beats.some((b) =>
       b.factIds?.some((f) => !r.facts.some((x) => x.id === f && !x.removed)),
@@ -40,7 +35,7 @@ export async function validateNarration(
   const raw = await callAI(
     id,
     "review",
-    `Check exact script against BOTH original content brief and evidence. Return {valid,reason}. Reject wrong subject/objective, unrelated brand, unsupported material/sustainability/price/performance/availability claims. Creative invitations and visual-only beats need no citations. Factual narration must follow the cited fact IDs. User product descriptions are not proof of performance. Brief:${JSON.stringify(semanticBrief(r))}. Facts:${JSON.stringify(r.facts.filter((f) => !f.removed))}. Beats:${JSON.stringify(beats)}`,
+    `Check exact script against BOTH original content brief and evidence. Return {valid,reason}. Reject wrong subject/objective, unrelated brand, unsupported material/sustainability/price/performance/availability claims. Explicitly fictional events, metaphors, creative invitations and visual-only beats need no citations, provided they are not presented as real-world claims. Factual narration must follow the cited fact IDs. User product descriptions are not proof of performance. Brief:${JSON.stringify(semanticBrief(r))}. Facts:${JSON.stringify(r.facts.filter((f) => !f.removed))}. Beats:${JSON.stringify(beats)}`,
     () =>
       response({
         valid: !invalid,
@@ -69,21 +64,6 @@ export async function reviseScript(id: string) {
       throw new Error("Revision inputs changed; late result rejected.");
   };
   check(r);
-  const needs =
-    /\b(add|claim|say|mention)\b.*\b(organic|sustainable|waterproof|price|costs?|available|guarantee|performance|cotton|recycled)\b|\b(change (?:the )?subject|new subject|instead (?:make|write|research))\b/i.test(
-      fb.note,
-    );
-  if (needs) {
-    await storage.updateRun(id, (r) => {
-      const f = r.feedbackHistory!.find((f) => f.id === fb.id)!;
-      f.status = "needs_research";
-      f.error =
-        "Edit the effective brief, add sources/product details, then request Fresh research explicitly.";
-    });
-    throw new Error(
-      "Fresh research needed for new claims or subject. Last good script preserved.",
-    );
-  }
   const ids =
     fb.scope === "opening"
       ? [r.script!.beats[0].id]
@@ -107,11 +87,11 @@ export async function reviseScript(id: string) {
     const raw = await callAI(
       id,
       "script-revision",
-      `Revise ONLY selected beats using feedback. Return {requiresResearch,reason,summary,beats}. New facts or changed subject require requiresResearch=true and beats:[], not fabricated support. Keep selected IDs/timestamps; return exactly selected IDs. Unselected beats stay unchanged. For full revision build a coherent, non-repetitive arc. Fit VO <=2.2 words/second. Creative invitations use factIds:[],claimType:creative. Factual narration uses retained factIds,claimType:supported. Product campaigns show products, not platform reports. Brief:${JSON.stringify(semanticBrief(r))}. Current:${JSON.stringify(r.script)}. Selected:${JSON.stringify(originals)}. Facts:${JSON.stringify(r.facts.filter((f) => !f.removed))}. Feedback history:${JSON.stringify(r.feedbackHistory)}. Note:${fb.note}`,
+      `Revise ONLY selected beats using feedback. Return {requiresResearch,reason,summary,beats}. New unsupported real-world facts or changed subject require requiresResearch=true and beats:[], not fabricated support. Keep selected IDs/timestamps; return exactly selected IDs. Unselected beats stay unchanged. For full revision build a coherent, non-repetitive arc. Fit VO <=2.2 words/second. Creative invitations use factIds:[],claimType:creative. Factual narration uses retained factIds,claimType:supported. Serve the actual objective without imposing a specific industry or visual genre. Brief:${JSON.stringify(semanticBrief(r))}. Current:${JSON.stringify(r.script)}. Selected:${JSON.stringify(originals)}. Facts:${JSON.stringify(r.facts.filter((f) => !f.removed))}. Feedback history:${JSON.stringify(r.feedbackHistory)}. Note:${fb.note}`,
       () =>
         response({
-          requiresResearch: false,
-          reason: "",
+          requiresResearch: /100% organic|new unsupported claim/i.test(fb.note),
+          reason: "This controlled fixture requests a new unsupported claim.",
           summary: `Applied ${fb.scope} feedback: ${fb.note}`,
           beats: originals.map((b, i) => ({
             ...b,

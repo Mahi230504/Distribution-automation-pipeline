@@ -52,6 +52,22 @@ export default function BriefIdentity({
         Run Brand kit: {run.brandKit?.brandName || "None"} ·{" "}
         {run.brandKit?.characterDescription}
       </p>
+      {run.briefAssessment && (
+        <div className="border rounded p-3 text-sm space-y-2" role="status">
+          <p className="font-medium">
+            Brief check:{" "}
+            {run.briefAssessment.issues.length
+              ? "Needs clarification"
+              : "Ready"}
+          </p>
+          <p>{run.briefAssessment.rationale}</p>
+          {run.briefAssessment.issues.map((issue, i) => (
+            <p key={i}>
+              {issue.explanation} <strong>{issue.question}</strong>
+            </p>
+          ))}
+        </div>
+      )}
       <details>
         <summary className="py-2 cursor-pointer">
           Effective brief and Brand kit — saved snapshot

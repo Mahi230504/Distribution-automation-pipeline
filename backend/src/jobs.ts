@@ -1,3 +1,4 @@
+import { assessBrief } from "./brief-assessment.js";
 import { randomUUID } from "node:crypto";
 import type { Run, GenerationKind } from "../../frontend/lib/types.js";
 import { storage } from "./storage.js";
@@ -47,6 +48,7 @@ async function execute(id: string) {
       r.jobStatus = "running";
       r.job!.status = "running";
     });
+    await assessBrief(id);
     const r = await storage.getRun(id);
     if (!["story", "rewrite", "script-revision"].includes(r.job!.kind)) {
       await runGeneration(id);
@@ -61,6 +63,7 @@ async function execute(id: string) {
       r.jobStatus = "needs_review";
       r.job!.status = "completed";
       r.job!.message = "Story ready";
+      r.job!.finishedAt = new Date().toISOString();
     });
   } catch (e) {
     await storage.updateRun(id, (r) => {
@@ -210,6 +213,7 @@ export async function startGeneration(
       if (kind === "frame-regenerate") {
         const f = g.board.find((f) => f.id === input.frameId)!;
         f.complete = false;
+        delete f.restoredFromAttemptId;
         delete g.boardApprovedAt;
       }
       r.currentStage =

@@ -14,6 +14,10 @@ export const settings = {
   main: process.env.GEMINI_MODEL_MAIN ?? "gemini-3.8-flash",
   scoring: process.env.GEMINI_MODEL_SCORING ?? "gemini-3.5-flash-lite",
   image: process.env.GEMINI_MODEL_IMAGE ?? "gemini-3.1-flash-image",
+  sourceConcurrency: Math.max(
+    1,
+    Math.min(6, Math.floor(number("SOURCE_FETCH_CONCURRENCY", 3))),
+  ),
   concurrency: Math.max(
     1,
     Math.floor(number("GEMINI_MAX_CONCURRENT_CALLS", 2)),

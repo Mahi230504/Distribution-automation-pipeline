@@ -7,7 +7,6 @@ import {
   assertIdle,
   assertVersion,
   invalidateStory,
-  brandConflict,
   requireBrief,
   mode,
 } from "./brief.js";
@@ -43,10 +42,6 @@ repairRouter.patch("/api/runs/:id/brief", async (req, res) => {
       if (b.expectedRevision !== (r.effective?.revision ?? 0))
         throw new Error("Brief changed. Refresh first.");
       if (r.storyApproval) throw new Error("Reopen Story first.");
-      if (brandConflict(b.interpretation.subject, b.brandKit ?? r.brandKit))
-        throw new Error(
-          "Conflicting coffee Brand kit: clear or edit the run-specific copy.",
-        );
       invalidateStory(r);
       r.brief.topic = b.interpretation.subject;
       r.effective = {
@@ -60,6 +55,7 @@ repairRouter.patch("/api/runs/:id/brief", async (req, res) => {
       r.facts = [];
       r.sources = [];
       r.research = undefined;
+      r.briefAssessment = undefined;
       r.script = null;
       r.scriptVersions = [];
       r.feedbackHistory = [];

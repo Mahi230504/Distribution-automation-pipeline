@@ -241,6 +241,22 @@ export interface AiCallLogEntry {
 }
 
 export interface Run {
+  briefAssessment?: {
+    inputKey: string;
+    briefRevision: number;
+    mode: "test" | "live";
+    at: string;
+    rationale: string;
+    issues: {
+      kind:
+        | "unclear_subject"
+        | "unclear_objective"
+        | "brand_conflict"
+        | "conflicting_constraints";
+      explanation: string;
+      question: string;
+    }[];
+  };
   mode?: "test" | "live" | "unknown";
   effective?: EffectiveBrief;
   storyApproval?: { scriptVersion: number; briefRevision: number; at: string };
@@ -350,6 +366,11 @@ export type ChangeOrigin =
   | "automatic frame regeneration"
   | "provider retry";
 export interface QualityReview {
+  visibleChecks?: {
+    requirement: string;
+    observed: boolean;
+    evidence: string;
+  }[];
   criticalFailures?: { code: string; evidence: string }[];
   mode?: "test" | "live" | "unknown";
   dimensions: Record<string, { score: number; explanation: string }>;
@@ -377,6 +398,12 @@ export interface PromptAttempt {
   origin: ChangeOrigin;
 }
 export interface ImageAttempt {
+  intentAudit?: { passed: boolean; reason: string; mode: "test" | "live" };
+  observation?: {
+    description: string;
+    uncertainties: string[];
+    mode: "test" | "live";
+  };
   referenceAssetId?: string;
   mode?: "test" | "live" | "unknown";
   stillPrompt?: string;
@@ -394,6 +421,7 @@ export interface ImageAttempt {
   approval?: "approved" | "rejected" | "replaced";
 }
 export interface BoardFrame {
+  restoredFromAttemptId?: string;
   id: string;
   order: number;
   beatIds: string[];

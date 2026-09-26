@@ -82,7 +82,7 @@ Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard
 | 1 | AGENTS.md and architecture docs | ✅ Done |
 | 2 | Frontend with every screen on sample data, deployed to Vercel | 🟨 Frontend built and tested locally on sample data; not yet deployed to Vercel |
 | 3 | Backend, test mode, cost tracking, and the Story stage | ✅ TEST_MODE tests pass; live research, source review, script, selective rewrite and saved edit validated; see docs/LIVE-VALIDATION.md |
-| 4 | Direction, Look and Storyboard stages | ✅ Local corrective build and live clothing journey through approved Storyboard verified; reviewer limitations documented in docs/LIVE-VALIDATION.md |
+| 4 | Direction, Look and Storyboard stages | ✅ General-purpose local pipeline verified through approved Storyboard; see docs/GENERALIZATION-VALIDATION.md for tests and limits |
 | 5 | Pack and Approve stages, Supabase (database, storage, accounts, Brand kit), Telegram sending | ⬜ Not started |
 | 6 | Backend deployed to Render, whole flow live end to end | ⬜ Not started |
 | 7 | Hardening: Autopilot, per-user daily limits, a Usage page, error tracking, full error states, README | ⬜ Not started |
@@ -104,3 +104,12 @@ Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard
 - Stop optimization on stalled improvement or the configured retry cap. Confirm image allowances including reviews and automatic repairs. Keep provider retries separate from quality repair.
 - Persist TEST/LIVE provenance. Switching server mode cannot convert simulated artifacts into live work.
 - Repair regressions use isolated data on port 4103. Browser verification uses isolated TEST_MODE data on port 4104. See docs/LIVE-VALIDATION.md for observed TEST_MODE and live results; never infer live image quality from fixture scores.
+
+
+## General-purpose validation rules (2026-09-26)
+
+- Never hardcode which industries, brands or platforms are compatible. The saved brief assessment considers the full subject, objective, details and kit; audience interests do not exclude other subjects. Ask for essential clarification, not optional creative choices.
+- Grounding remains the sole source of citations. Judge factual support and relevance together, without topic keyword bans. Fiction is permitted when clearly framed as fiction; real claims still require support.
+- Source retrieval uses bounded parallel I/O; identical resolved page evidence is shared without losing citation IDs. Do not truncate evidence to make a speed claim.
+- New images have a saved independent pixel observation, a blocking text intent audit using the writing model, and a six-dimension multimodal review using the cheaper model. High scores cannot override a failed intent audit or an unverified required detail. Persist all calls and include them in quotes. Rejected key images cannot become references.
+- Test before live calls. The test command explicitly enables TEST_MODE. Keep each isolated data directory to one writer. Never infer universal output quality from finite tests; report live observations separately.

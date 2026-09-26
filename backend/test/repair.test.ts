@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { spawn, type ChildProcess } from "node:child_process";
 import { createHash } from "node:crypto";
 import sharp from "sharp";
-import { irrelevantFact, criticalText } from "../src/brief.js";
+
 const dir = await mkdtemp(join(tmpdir(), "vpo-repair-")),
   base = "http://127.0.0.1:4103/api";
 let child: ChildProcess;
@@ -144,11 +144,22 @@ test("Brief fidelity, revision history, safety gates, pixel inputs and provenanc
           },
           "PUT",
         );
+        await stop();
+        await start("brief-conflict");
         const conflict = await api("/runs", {
           ...input(),
           brandSelection: "saved",
         });
-        await api(`/runs/${conflict.id}/story`, {}, "POST", false);
+        await api(`/runs/${conflict.id}/story`, {});
+        const blocked = await done(conflict.id);
+        assert.equal(blocked.jobStatus, "failed");
+        assert.equal(blocked.briefAssessment.issues[0].kind, "brand_conflict");
+        assert.equal(
+          blocked.aiCallLog.filter((c: any) => c.task === "research").length,
+          0,
+        );
+        await stop();
+        await start();
         const clean = await api("/runs", input());
         assert.equal(clean.brandKit.brandName, "");
         assert.equal(
@@ -165,24 +176,71 @@ test("Brief fidelity, revision history, safety gates, pixel inputs and provenanc
           r.script.fullText,
           /coffee|barista|daily shares|analytics dashboard/i,
         );
-        assert.equal(irrelevantFact(r, "Instagram adoption grew"), true);
-        const explainer = {
-          ...r,
-          effective: {
-            ...r.effective,
-            subject: "Instagram marketing metrics explainer",
-            objective: "explain",
-          },
-        };
-        assert.equal(
-          irrelevantFact(explainer, "Instagram adoption grew"),
-          false,
+        const explicit = input(
+          "Instagram marketing metrics explainer",
+          "explain",
         );
-        assert.equal(criticalText(r, "analytics dashboard").length, 1);
-        assert.equal(criticalText(explainer, "analytics dashboard").length, 0);
+        let explainer = await api("/runs", explicit);
+        await api(`/runs/${explainer.id}/story`, {});
+        explainer = await done(explainer.id);
+        assert.equal(explainer.jobStatus, "needs_review", explainer.job?.error);
+        assert.ok(explainer.facts.some((f: any) => /Instagram/.test(f.text)));
         const shoe = await story("shoe brand");
         assert.match(shoe.script.fullText, /shoe/i);
         assert.doesNotMatch(shoe.script.fullText, /coffee|barista/i);
+      },
+    );
+    await t.test(
+      "unrelated objectives complete through approved Storyboard with one saved brief assessment",
+      async () => {
+        for (const [subject, objective] of [
+          ["Coffee brewing", "demonstrate"],
+          ["Analytics dashboard tutorial", "explain"],
+          ["Fictional robot garden", "tell a story"],
+          ["Local pottery class", "promote"],
+        ]) {
+          const b = input(subject, objective);
+          b.interpretation.productDetails = `Show ${subject} for a beginner audience; no invented claims about a provider.`;
+          b.interpretation.summary = `A clear ${objective} sequence about ${subject}, with opening, development and payoff.`;
+          let x = await api("/runs", b);
+          await api(`/runs/${x.id}/story`, {});
+          x = await done(x.id);
+          assert.equal(x.jobStatus, "needs_review", x.job?.error);
+          x = await prompt(x);
+          x = await image(x, "key");
+          const key = x.generation.keys.find(
+            (k: any) => k.id === x.generation.activeKeyId,
+          );
+          x = await api(`/runs/${x.id}/key-frame/approve`, { keyId: key.id });
+          x = await image(x, "board");
+          x = await api(`/runs/${x.id}/storyboard/approve`, {});
+          assert.ok(x.generation.boardApprovedAt);
+          assert.equal(
+            x.aiCallLog.filter((c: any) => c.task === "brief-assessment")
+              .length,
+            1,
+          );
+          assert.ok(
+            x.generation.board.every((f: any) =>
+              f.attempts.some((a: any) => a.review.visibleChecks.length >= 2),
+            ),
+          );
+        }
+      },
+    );
+    await t.test(
+      "ambiguous semantic assessment stops before grounded research and persists an actionable question",
+      async () => {
+        await stop();
+        await start("brief-ambiguous");
+        let x = await api("/runs", input("Something interesting", "explain"));
+        await api(`/runs/${x.id}/story`, {});
+        x = await done(x.id);
+        assert.equal(x.jobStatus, "failed");
+        assert.equal(x.aiCallLog.length, 1);
+        assert.match(x.briefAssessment.issues[0].question, /specific/);
+        await stop();
+        await start();
       },
     );
     await t.test(
@@ -352,6 +410,12 @@ test("Brief fidelity, revision history, safety gates, pixel inputs and provenanc
         );
         const pixelHash = createHash("sha256").update(pixel).digest("hex");
         assert.deepEqual(
+          r.aiCallLog.find((c: any) => c.task === "key-observation")
+            .referenceHashes,
+          [pixelHash],
+        );
+        assert.match(key.observation.description, /TEST MODE/);
+        assert.deepEqual(
           r.aiCallLog.find((c: any) => c.task === "key-review").referenceHashes,
           [pixelHash, hash],
         );
@@ -452,6 +516,86 @@ test("Brief fidelity, revision history, safety gates, pixel inputs and provenanc
           "POST",
           false,
         );
+      },
+    );
+    await t.test(
+      "independent intent mismatch blocks a high-scoring key at the retry cap",
+      async () => {
+        await stop();
+        await start("intent-mismatch");
+        let x = await prompt(await story("Local pottery class"));
+        x = await image(x, "key");
+        const key = x.generation.keys.find(
+          (k: any) => k.id === x.generation.activeKeyId,
+        );
+        assert.ok(key.review.overall >= 70);
+        assert.equal(key.intentAudit.passed, false);
+        assert.equal(key.review.passed, false);
+        assert.equal(x.generation.keys.length, 2);
+        await api(
+          `/runs/${x.id}/key-frame/approve`,
+          { keyId: key.id },
+          "POST",
+          false,
+        );
+      },
+    );
+    await t.test(
+      "failed manual intent checks cannot be approved; restore retains prior image without cost and rejects stale selection",
+      async () => {
+        await stop();
+        await start();
+        let x = await prompt(await story("Local workshop"));
+        x = await image(x, "key");
+        x = await api(`/runs/${x.id}/key-frame/approve`, {
+          keyId: x.generation.activeKeyId,
+        });
+        x = await image(x, "board");
+        const before = structuredClone(x.generation.board),
+          target = before[1];
+        await stop();
+        await start("frame-intent-mismatch");
+        x = await image(x, "frame-regenerate", target.id);
+        const failed = x.generation.board[1];
+        assert.equal(failed.attempts.at(-1).review.passed, false);
+        await api(`/runs/${x.id}/storyboard/approve`, {}, "POST", false);
+        await api(
+          `/runs/${x.id}/frames/${target.id}/restore`,
+          {
+            attemptId: failed.attempts.find(
+              (a: any) => a.id !== failed.selectedAttemptId && !a.review.passed,
+            ).id,
+            expectedSelectedAttemptId: failed.selectedAttemptId,
+          },
+          "POST",
+          false,
+        );
+        await api(
+          `/runs/${x.id}/frames/${target.id}/restore`,
+          {
+            attemptId: target.selectedAttemptId,
+            expectedSelectedAttemptId: target.selectedAttemptId,
+          },
+          "POST",
+          false,
+        );
+        const calls = x.aiCallLog.length;
+        x = await api(`/runs/${x.id}/frames/${target.id}/restore`, {
+          attemptId: target.selectedAttemptId,
+          expectedSelectedAttemptId: failed.selectedAttemptId,
+        });
+        assert.equal(x.aiCallLog.length, calls);
+        assert.equal(
+          x.generation.board[1].selectedAttemptId,
+          target.selectedAttemptId,
+        );
+        assert.deepEqual(
+          x.generation.board.filter((f: any) => f.id !== target.id),
+          before.filter((f: any) => f.id !== target.id),
+        );
+        assert.equal(x.generation.board[1].attempts.length, 3);
+        x = await api(`/runs/${x.id}/storyboard/approve`, {});
+        assert.ok(x.generation.boardApprovedAt);
       },
     );
     await t.test(

@@ -81,7 +81,7 @@ test("Story, selective rewrite, user version, cache, restart/resume, script skip
     assert.equal(run.research.dropped.length, 1);
     assert.equal(run.sources[0].resolution, "resolved");
     assert.equal(run.runningCostUsd, 0);
-    assert.equal(run.aiCallLog.length, 3);
+    assert.equal(run.aiCallLog.length, 4);
     assert.ok(
       run.aiCallLog.every(
         (c: any) => c.estimatedCostUsd === 0 && c.inputTokens > 0,
@@ -109,7 +109,7 @@ test("Story, selective rewrite, user version, cache, restart/resume, script skip
     await api(`/runs/${cached.id}/story`, {});
     const cacheResult = await done(cached.id);
     assert.equal(cacheResult.research.reused, true);
-    assert.equal(cacheResult.aiCallLog.length, 1);
+    assert.equal(cacheResult.aiCallLog.length, 2);
     const interrupted = await api("/runs", {
       ...brief,
       topic: "Interruption test",

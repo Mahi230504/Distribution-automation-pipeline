@@ -33,6 +33,14 @@ function Scores({ review }: { review?: QualityReview }) {
         {review.threshold} ·{" "}
         {review.passed ? "Passed" : "Quality threshold not reached"}
       </p>
+      {review.visibleChecks?.map((check, i) => (
+        <div key={i} className="border rounded p-2 text-sm">
+          <strong>
+            {check.observed ? "Observed" : "Not verified"}: {check.requirement}
+          </strong>
+          <p>{check.evidence}</p>
+        </div>
+      ))}
       {review.criticalFailures?.map((f, i) => (
         <p key={i} role="alert" className="text-warning">
           Critical: {label(f.code)} — {f.evidence}
@@ -92,6 +100,24 @@ function ImageView({ image, run }: { image: ImageAttempt; run: Run }) {
       </p>
       {image.note && (
         <p className="text-sm text-muted break-words">Change: {image.note}</p>
+      )}
+      {image.observation && (
+        <details>
+          <summary>Independent pixel observation</summary>
+          <p className="text-sm">{image.observation.description}</p>
+          {image.observation.uncertainties.map((u, i) => (
+            <p className="text-sm text-warning" key={i}>
+              Uncertain: {u}
+            </p>
+          ))}
+        </details>
+      )}
+      {image.intentAudit && (
+        <p className="text-sm">
+          Independent intent check:{" "}
+          {image.intentAudit.passed ? "Passed" : "Not satisfied"} —{" "}
+          {image.intentAudit.reason}
+        </p>
       )}
       {image.review && <Scores review={image.review} />}
       {image.stillPrompt && (
@@ -592,6 +618,12 @@ export default function GenerationWorkspace({
                       ) : (
                         <p>Waiting for generation</p>
                       )}
+                      {f.restoredFromAttemptId && (
+                        <p className="text-sm text-muted mt-3">
+                          Previous passing attempt restored. Newer attempts
+                          remain in history; no new generation cost.
+                        </p>
+                      )}
                       {f.retryLimitReached && (
                         <p className="text-warning mt-3">
                           Retry limit reached. Showing the best available result
@@ -640,7 +672,34 @@ export default function GenerationWorkspace({
                             </summary>
                             <div className="space-y-6">
                               {f.attempts.map((a) => (
-                                <ImageView key={a.id} image={a} run={run} />
+                                <div key={a.id}>
+                                  <ImageView image={a} run={run} />
+                                  {a.review?.passed &&
+                                    a.id !== f.selectedAttemptId && (
+                                      <button
+                                        className={secondary}
+                                        disabled={busy}
+                                        onClick={() =>
+                                          onAction(
+                                            "Restoring saved frame",
+                                            () =>
+                                              repairAction(
+                                                run.id,
+                                                `frames/${f.id}/restore`,
+                                                {
+                                                  attemptId: a.id,
+                                                  expectedSelectedAttemptId:
+                                                    f.selectedAttemptId,
+                                                },
+                                              ),
+                                          )
+                                        }
+                                      >
+                                        Restore frame {f.order + 1} attempt{" "}
+                                        {a.attempt}
+                                      </button>
+                                    )}
+                                </div>
                               ))}
                             </div>
                           </details>
@@ -650,11 +709,26 @@ export default function GenerationWorkspace({
                   );
                 })}
               </div>
+              <p className="text-sm text-muted">
+                Failed visual requirements must be resolved, or a previous
+                passing attempt restored, before approval.
+              </p>
               <button
                 className={button}
                 disabled={
                   busy ||
-                  g.board.some((f) => !f.complete) ||
+                  g.board.some((f) => {
+                    const a = f.attempts.find(
+                      (a) => a.id === f.selectedAttemptId,
+                    );
+                    return (
+                      !f.complete ||
+                      !a ||
+                      a.intentAudit?.passed === false ||
+                      a.review?.visibleChecks?.some((c) => !c.observed) ||
+                      !!a.review?.criticalFailures?.length
+                    );
+                  }) ||
                   !!g.boardApprovedAt
                 }
                 onClick={() =>

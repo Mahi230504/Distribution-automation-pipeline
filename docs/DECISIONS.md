@@ -148,3 +148,18 @@ Sources: [Google pricing](https://ai.google.dev/gemini-api/docs/pricing), [image
 The owner authorized image generation without further permission questions. Existing backend quote confirmations were used on the owner's behalf; no global removal of cost gates was implemented. Five final frames and two targeted sleeve revisions stayed within the proposed $6.0816 image/review allowance. Observed total including text: $0.57671915. See `LIVE-VALIDATION.md` for the ledger and outputs.
 
 The cheap reviewer gave high scores to two sleeve images that did not precisely satisfy the requested visible detail. Keep its real scores, preserve the images, and retain human Look/Storyboard judgment and focused feedback. Do not represent a high score as proof of exact visual fidelity. No model or threshold was silently changed to force acceptance.
+
+
+## 2026-09-26 — Remove category assumptions; optimize evidence and verify visual intent
+
+- Replace narrow clothing/coffee and platform keyword guards with a brief-relative assessment, factual relevance checks and exact-version reviews. Different audience interests alone are not a contradiction; sponsorship and mixed-subject content can be intentional. Keep domain-specific examples only in fixtures and UI examples.
+- Use the configured writing model for semantic brief assessment and independent text visual-intent auditing. Live probes showed that the cheaper model could be overly restrictive about audience interests and could overlook a visible contradiction despite high scores. The cheap model still performs numerical scoring and multimodal review; there is no hidden model fallback or replacement.
+- An independent pixel observer receives no target prompt, reducing suggestion from the desired answer. Its observations are compared with the intended state by a separate blocking audit. Persist that audit and veto a pass when it fails. This adds verification latency/cost intentionally; report that tradeoff rather than claiming all work became faster.
+- Fetch up to three public source pages concurrently and share duplicate resolved evidence while preserving every attribution edge. The controlled benchmark and retained-evidence comparison measure this improvement without comparing unrelated live topics as if they were controlled experiments.
+- Extend existing image estimates to include both cheap review calls and the writing-model audit. Current per-slot conservative allowance is $1.4466; old unused quotes become stale. Keep exact real scores, failed images and paid attempts as history.
+
+Configured model IDs and official price sources remain those verified on 2026-09-26 above. The main model now has two additional text-only tasks; no new image model, external service, account integration or deployment was introduced. Detailed validation is in `GENERALIZATION-VALIDATION.md`.
+
+### 2026-09-26 — Recover after an unsuccessful manual frame change
+
+Live fine-grained image feedback exhausted its cap. Added a version-checked restore action for earlier passing frame attempts, without deleting failures or spending again. Final approval rejects unresolved visual failures; scores alone cannot authorize it. Live generalization evidence and all costs are in GENERALIZATION-VALIDATION.md.

@@ -375,3 +375,24 @@ This remains a single-user, single-process local build. Authentication, shared p
 ### Observed local live validation — 2026-09-26
 
 The corrected pipeline reached approved Storyboard on a clothing brief with five final frames and two manual revisions of the same sleeve frame. Actual reference bytes, distinct output pixels, unchanged other frames, saved approvals, browser refresh and completed-run restart were verified. Total logged estimate: $0.57671915, including unsuccessful visual attempts. The reviewer missed a cuff detail despite high scores; human inspection and targeted feedback remain necessary. Cost gates remain server-enforced, with the owner authorizing the assistant to confirm them for this validation. See `LIVE-VALIDATION.md` for observed results versus fixture-only coverage.
+
+
+## General-purpose pipeline update — 2026-09-26
+
+This section supersedes the narrow keyword guards and earlier one-review-per-image cost allowance. No live clothing/coffee or platform-word blacklist remains. A persisted `briefAssessment` contains an input hash, brief revision, mode, rationale and actionable issues. The writing model checks essential ambiguity and explicit conflicts once per input snapshot; changing subject, notes, kit, mode or assessment model invalidates reuse. All promotional/demonstration offerings need details, not just particular industries. The same gate runs before Story or a pasted-script Direction job. Existing edit/reopen routes resolve clarification; no new API route is required.
+
+Evidence retrieval uses `SOURCE_FETCH_CONCURRENCY` (default 3, bounded 1–6). Results retain grounding chunk order. Duplicate requests share a promise, and duplicate resolved URL/text pairs share one evidence body with all original source IDs. Fact reviews remain grounded and brief-relative. Source privacy/size/redirect checks remain intact.
+
+Every new image attempt can store `observation` (description, uncertainties, mode) and `intentAudit` (passed, reason, mode). The observer sees image bytes without the desired prompt or reference. The writing-model audit compares the independently observed state with the requested still and original brief. The cheaper multimodal reviewer still sees actual frame and reference bytes and produces six scores, critical failures and atomic `visibleChecks`. Overall remains the lowest score; acceptance additionally requires all essential checks and the intent audit. An independent audit cannot turn a failed numerical review into a pass. The UI displays each finding and cost. Saved observation/audit outputs are reused on Resume. Legacy paid reviews retain their original values, rather than being relabelled as newly audited.
+
+Automatic repair notes combine the user's instruction, critical failures, missing visible requirements and low-scoring dimensions. Rejected key frames are excluded as references. Still instructions select one moment instead of combining successive actions, and allow relevant interfaces/functional labels while keeping editorial VO and captions separate.
+
+### Revised image allowance
+
+Per frame slot, at current settings: **$1.4466** reserved for up to two image versions and up to three provider attempts per call. Breakdown: $0.402 image output; $0.276 image input/text; $0.387 writing-model intent audits; $0.3816 cheaper pixel observations and multimodal reviews. A six-frame board plus one manual slot has a conservative $10.1262 combined planning allowance, confirmed in separate actions. Actual successful calls typically use far less. These estimates are not provider invoices or a global account cap. Review-policy version and all model prices are included in quote fingerprints so changed policy/prices invalidate unused quotes.
+
+No new infrastructure or publishing features were added. See `GENERALIZATION-VALIDATION.md` for domain coverage, observed live failures, repairs, costs and timing limits.
+
+### Saved-frame recovery
+
+`POST /api/runs/:id/frames/:frameId/restore` selects a previous passing attempt, requiring its ID and the expected current selection. It rejects concurrent/stale changes, does not call AI, preserves all attempts and invalidates Storyboard approval. `restoredFromAttemptId` records recovery. Final Storyboard approval rejects failed critical or visible requirements even when numerical scores are high.

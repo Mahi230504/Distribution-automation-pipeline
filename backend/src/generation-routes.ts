@@ -190,6 +190,53 @@ generationRouter.post("/api/runs/:id/key-frame/reject", async (req, res) => {
     }),
   );
 });
+generationRouter.post(
+  "/api/runs/:id/frames/:frameId/restore",
+  async (req, res) => {
+    const body = z
+      .object({
+        attemptId: z.string().uuid(),
+        expectedSelectedAttemptId: z.string().uuid(),
+      })
+      .parse(req.body);
+    res.json(
+      await storage.updateRun(runId(req.params), (r) => {
+        if (isBusy(r) || r.jobStatus === "interrupted")
+          throw new Error("Finish or Resume the current job first.");
+        requireBrief(r);
+        assertVersion(
+          r,
+          r.storyApproval?.scriptVersion,
+          r.storyApproval?.briefRevision,
+        );
+        const g = ensureGeneration(r),
+          f = g.board.find(
+            (f) => f.id === String(req.params.frameId) && !f.isKey,
+          );
+        if (!f || !f.complete)
+          throw new Error("Choose a completed storyboard frame.");
+        if (f.selectedAttemptId === body.attemptId) return;
+        if (f.selectedAttemptId !== body.expectedSelectedAttemptId)
+          throw new Error("Frame changed. Refresh before restoring.");
+        const a = f.attempts.find((a) => a.id === body.attemptId);
+        if (!a?.review?.passed || a.intentAudit?.passed === false)
+          throw new Error("Only a passing saved attempt can be restored.");
+        f.restoredFromAttemptId = f.selectedAttemptId;
+        f.selectedAttemptId = a.id;
+        f.retryLimitReached = false;
+        delete g.boardApprovedAt;
+        r.jobStatus = "needs_review";
+        activity(
+          r,
+          "frame-restore",
+          `Restored frame ${f.order + 1} attempt ${a.attempt}; later changes remain in history. No AI call or cost.`,
+          "completed",
+          "user",
+        );
+      }),
+    );
+  },
+);
 generationRouter.post("/api/runs/:id/storyboard/approve", async (req, res) =>
   res.json(
     await storage.updateRun(runId(req.params), (r) => {
@@ -209,14 +256,19 @@ generationRouter.post("/api/runs/:id/storyboard/approve", async (req, res) =>
         r.storyApproval?.briefRevision,
       );
       if (
-        g.board.some(
-          (f) =>
-            f.attempts.find((a) => a.id === f.selectedAttemptId)?.review
-              ?.criticalFailures?.length,
-        )
+        g.board.some((f) => {
+          const a = f.attempts.find((a) => a.id === f.selectedAttemptId);
+          return (
+            !a ||
+            (!f.isKey && !a.review) ||
+            a.intentAudit?.passed === false ||
+            a.review?.visibleChecks?.some((c) => !c.observed) ||
+            !!a.review?.criticalFailures?.length
+          );
+        })
       )
         throw new Error(
-          "Resolve critical subject or factual failures before approving the Storyboard.",
+          "Resolve failed visual requirements or restore a passing frame before approving the Storyboard.",
         );
       g.boardApprovedAt = new Date().toISOString();
       r.currentStage = "storyboard";
