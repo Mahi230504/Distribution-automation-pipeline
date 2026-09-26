@@ -370,3 +370,8 @@ Runs, scripts, feedback, quotes, prompt versions, reviews, activity and AI calls
 The browser displays the effective brief/kit, original and revised scripts, Restore, outdated history, exact prompt and still instructions, critical failures, actual images, persisted progress and per-stage/per-call estimated costs. Simulated runs and artifacts remain visibly simulated even under a LIVE server. Connection errors never fall back to browser samples when a backend URL is set.
 
 This remains a single-user, single-process local build. Authentication, shared persistence, deployment, publishing and operational production hardening remain later-session work. Automated review and lexical conflict checks cannot guarantee semantic correctness; live acceptance requires inspecting generated images, not simply trusting scores.
+
+
+### Observed local live validation — 2026-09-26
+
+The corrected pipeline reached approved Storyboard on a clothing brief with five final frames and two manual revisions of the same sleeve frame. Actual reference bytes, distinct output pixels, unchanged other frames, saved approvals, browser refresh and completed-run restart were verified. Total logged estimate: $0.57671915, including unsuccessful visual attempts. The reviewer missed a cuff detail despite high scores; human inspection and targeted feedback remain necessary. Cost gates remain server-enforced, with the owner authorizing the assistant to confirm them for this validation. See `LIVE-VALIDATION.md` for observed results versus fixture-only coverage.

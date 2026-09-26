@@ -82,7 +82,7 @@ Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard
 | 1 | AGENTS.md and architecture docs | ✅ Done |
 | 2 | Frontend with every screen on sample data, deployed to Vercel | 🟨 Frontend built and tested locally on sample data; not yet deployed to Vercel |
 | 3 | Backend, test mode, cost tracking, and the Story stage | ✅ TEST_MODE tests pass; live research, source review, script, selective rewrite and saved edit validated; see docs/LIVE-VALIDATION.md |
-| 4 | Direction, Look and Storyboard stages | 🟨 Corrective implementation and TEST_MODE verification; repaired live acceptance pending explicit product interpretation and image cost approval |
+| 4 | Direction, Look and Storyboard stages | ✅ Local corrective build and live clothing journey through approved Storyboard verified; reviewer limitations documented in docs/LIVE-VALIDATION.md |
 | 5 | Pack and Approve stages, Supabase (database, storage, accounts, Brand kit), Telegram sending | ⬜ Not started |
 | 6 | Backend deployed to Render, whole flow live end to end | ⬜ Not started |
 | 7 | Hardening: Autopilot, per-user daily limits, a Usage page, error tracking, full error states, README | ⬜ Not started |
@@ -103,4 +103,4 @@ Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard
 - Review prompt and actual pixels against the original brief as well as the script. Critical subject/claim failures override high scores. Review the key frame before allowing approval. Use dedicated still prompts and actual reference bytes.
 - Stop optimization on stalled improvement or the configured retry cap. Confirm image allowances including reviews and automatic repairs. Keep provider retries separate from quality repair.
 - Persist TEST/LIVE provenance. Switching server mode cannot convert simulated artifacts into live work.
-- Repair regressions use isolated data on port 4103. Browser verification uses isolated TEST_MODE data on port 4104. See docs/LIVE-VALIDATION.md for observed results and outstanding live approval; do not call live image acceptance complete based on fixtures.
+- Repair regressions use isolated data on port 4103. Browser verification uses isolated TEST_MODE data on port 4104. See docs/LIVE-VALIDATION.md for observed TEST_MODE and live results; never infer live image quality from fixture scores.

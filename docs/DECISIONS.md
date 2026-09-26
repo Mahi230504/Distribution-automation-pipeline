@@ -141,3 +141,10 @@ Models retained; no silent substitutions:
 | Google Search | Grounding | $0.014 per reported search query, conservatively excluding the shared free allowance |
 
 Sources: [Google pricing](https://ai.google.dev/gemini-api/docs/pricing), [image generation and editing](https://ai.google.dev/gemini-api/docs/image-generation), [review model capabilities](https://ai.google.dev/gemini-api/docs/models/gemini-3.5-flash-lite). The image guide supports reference-image input and both 9:16 and 16:9; Flash-Lite accepts image input and structured text output. These documentation checks establish supported capabilities, not the quality of this app's live output. Writing prices rise to $1.50/$7.50 on 2027-01-01 according to the checked page; update settings before then.
+
+
+## 2026-09-26 — Authorized live validation and review limits
+
+The owner authorized image generation without further permission questions. Existing backend quote confirmations were used on the owner's behalf; no global removal of cost gates was implemented. Five final frames and two targeted sleeve revisions stayed within the proposed $6.0816 image/review allowance. Observed total including text: $0.57671915. See `LIVE-VALIDATION.md` for the ledger and outputs.
+
+The cheap reviewer gave high scores to two sleeve images that did not precisely satisfy the requested visible detail. Keep its real scores, preserve the images, and retain human Look/Storyboard judgment and focused feedback. Do not represent a high score as proof of exact visual fidelity. No model or threshold was silently changed to force acceptance.
