@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { settings } from "./settings.js";
 
-const allowedExact=new Set(["accounts.google.com","oauth2.googleapis.com","www.googleapis.com","graph.instagram.com","api.instagram.com","rupload.facebook.com","www.linkedin.com","api.linkedin.com"]);
+const allowedExact=new Set(["accounts.google.com","oauth2.googleapis.com","www.googleapis.com","graph.facebook.com","rupload.facebook.com","www.linkedin.com","api.linkedin.com"]);
 const signedSuffixes=[".googleusercontent.com",".linkedin-ei.com"];
 function privateAddress(address:string){if(address==="::1"||address.startsWith("fc")||address.startsWith("fd")||address.startsWith("fe80:"))return true;const p=address.split(".").map(Number);return p.length===4&&(p[0]===10||p[0]===127||p[0]===0||(p[0]===169&&p[1]===254)||(p[0]===172&&p[1]>=16&&p[1]<=31)||(p[0]===192&&p[1]===168));}
 export async function assertProviderUrl(raw:string,resolve=lookup){const url=new URL(raw);if(url.protocol!=="https:"||url.username||url.password||url.port)throw new Error("Provider URL must use HTTPS without embedded credentials or a custom port.");const host=url.hostname.toLowerCase();if(!allowedExact.has(host)&&!signedSuffixes.some(suffix=>host.endsWith(suffix)))throw new Error("Provider URL host is not allowed.");const addresses=await resolve(host,{all:true});if(!addresses.length||addresses.some(item=>!isIP(item.address)||privateAddress(item.address)))throw new Error("Provider URL resolved to an unsafe address.");return url;}

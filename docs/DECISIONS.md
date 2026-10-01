@@ -206,7 +206,7 @@ Keep independent visual checks after they caught real errors; do not remove them
 - Store connections, OAuth state, targets and publication aggregates outside release snapshots. Store tokens and upload/session URLs only as versioned AES-256-GCM envelopes with fresh nonces and owner/provider/record AAD. The browser has no raw table grant.
 - Prepare the complete canonical destination batch before scheduling. Per-target idempotency binds the exact approval, payload, target capability revision and YouTube privacy. Fenced claims and append-only checkpoints prevent an old worker from overwriting newer evidence.
 - Treat upload acceptance, provider processing and external post creation as different evidence. Partial success is durable. Ambiguous final creation is `unknown` and is reconciled or inspected, never blindly repeated.
-- Support YouTube resumable sessions and LinkedIn instructed ranges in the LIVE reference adapters. Capability-block LIVE Instagram until the current official Instagram Login private binary path is verified; do not create a permanent public media URL as a workaround.
+- Support YouTube resumable sessions, Meta's documented Facebook Login private-binary Reels flow and LinkedIn instructed ranges in the LIVE adapters. Keep provider-version inputs explicit and do not create a permanent public media URL as an Instagram workaround.
 - Keep local JSON single-process and Supabase service-role queries explicitly owner-filtered. The additive migration, RPC CAS/state consumption and pgTAP policy tests are committed but not applied in this pass.
 
 Official provider documentation and retrieval date are recorded in `STEP5C-DESIGN.md`.
@@ -217,3 +217,9 @@ Official provider documentation and retrieval date are recorded in `STEP5C-DESIG
 - Use claim fences at every provider effect and one claim-bound secret/public-checkpoint commit. Local mode journals the pair for crash recovery; Supabase uses an additive transaction RPC and owner/run/job registry. CAS retries reuse prepared IDs, times and events.
 - Persist bounded poll/backoff timing and honor valid `Retry-After`. Approval supersession stops new external writes while permitting only read-only inspection needed to retain evidence for an already-created artifact.
 - Treat injected transport tests as protocol-shape evidence only. They do not establish provider account eligibility, OAuth approval, upload success or external publication.
+
+### 2026-10-02 — Step 5C live-provider completion
+
+- Use Meta's official Facebook Login Page flow for private Reels bytes: discover Page-linked professional accounts, create a resumable container, upload only to the validated `rupload.facebook.com` URI, poll status, and issue `media_publish` once. Persist session evidence so recovery never guesses after an ambiguous final write.
+- Resolve the LinkedIn member ID through `/v2/me` under `r_liteprofile`; never turn the OpenID Connect pairwise subject into a Person URN. Member publishing continues to use `w_member_social`. Organization discovery remains a separate future capability.
+- Require an explicit supported Meta Graph API version in LIVE configuration. Provider fakes remain contract evidence. A real LIVE claim requires configured provider applications, real OAuth, observed private/disposable publications and provider-side evidence.

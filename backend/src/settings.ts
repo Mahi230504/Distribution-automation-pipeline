@@ -50,6 +50,7 @@ export const settings = {
   googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
   metaClientId: process.env.META_CLIENT_ID ?? "",
   metaClientSecret: process.env.META_CLIENT_SECRET ?? "",
+  metaGraphApiVersion: process.env.META_GRAPH_API_VERSION ?? "",
   linkedinClientId: process.env.LINKEDIN_CLIENT_ID ?? "",
   linkedinClientSecret: process.env.LINKEDIN_CLIENT_SECRET ?? "",
   linkedinApiVersion: process.env.LINKEDIN_API_VERSION ?? "202609",
