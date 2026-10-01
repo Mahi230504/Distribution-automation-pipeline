@@ -8,6 +8,12 @@ Implementation verification date: 2 October 2026. Tests use TEST publishing or i
 - Atomic batch preparation and identical-repeat reuse without duplicate intents/jobs.
 - Append-only target supersession before work and rejection after a provider effect starts.
 - Deterministic success, processing, failure, reconnect and ambiguous TEST outcomes with a fetch-deny assertion proving zero platform HTTP.
+- Injected-transport YouTube protocol shapes: authenticated session creation, media length, authenticated upload, 308 status/resume, 201 video ID and processing checks.
+- Injected-transport LinkedIn protocol shapes: validated ordered ranges, mandatory ETags, exact finalize part IDs/token, processing, approved commentary/hashtag composition and Posts URN handling.
+- Explicit safe-retry, reconcile-only, reconnect-only and attention-only behavior; Instagram's deterministic capability block cannot expose Retry.
+- Reconnect-in-place and missing-scope behavior, persisted bounded polling/Retry-After metadata, claim fencing, forced-CAS metadata stability and atomic local secret/public checkpoint protection.
+- OAuth callback failure headers, cookie clearing and sanitized 303 behavior. These are local route/protocol assertions, not evidence of a real provider authorization.
+- Exact Supabase 206/Content-Range validation for private byte ranges.
 - Immutable Pack-to-platform payload mapping without destination crossover.
 - AES-256-GCM encryption, AAD binding, key length, missing old key and rotation behavior.
 - OAuth state provider/cookie binding, expiry and single-use replay denial.
@@ -18,9 +24,9 @@ Implementation verification date: 2 October 2026. Tests use TEST publishing or i
 
 Clean verification results:
 
-- Backend suite: **87/87 pass** (the accepted 77 plus 10 focused Step 5C tests).
+- Backend suite: **100/100 pass** (the accepted 87 plus 13 focused correction tests).
 - Backend TypeScript production build: **pass**.
-- Frontend component suite: **9/9 pass** (the accepted 6 plus 3 focused Step 5C tests).
+- Frontend component suite: **10/10 pass**. Reconnect uses the exact bound connection; attention/reconcile checkpoints do not display Retry.
 - Frontend ESLint: **pass**.
 - Frontend Next.js webpack production build: **pass**.
 - Backend production dependency audit: **0 vulnerabilities**.
@@ -30,7 +36,7 @@ Clean verification results:
 ## Evidence boundaries
 
 - Browser acceptance: **Not run.** Isolated TEST data and a valid MP4 were prepared and both servers started, but the computer-use inventory returned `browsers: []`. The temporary data and servers were removed/stopped. Component tests are separate evidence and are not substituted.
-- Database/RLS policy execution: **Not run.** No local Supabase/Docker engine was used. The migration and pgTAP test are reproducible artifacts, not claimed runtime evidence.
+- Database/RLS policy execution: **Not run.** No local Supabase/Docker engine was used and no migration was applied. The additive migration and expanded pgTAP artifacts include temporary User A/User B policy assertions, service-only secret/OAuth assertions, atomic OAuth consumption, cross-owner job-secret rejection and idempotency-conflict coverage; their existence is not runtime policy evidence.
 - Local real OAuth callbacks: **Not run.** No disposable credentials or registered callbacks were supplied.
 - YouTube live upload/publication: **Not run.**
 - Instagram live upload/publication: **Not run.** Its private-binary Instagram Login path remains capability-blocked pending current official verification.

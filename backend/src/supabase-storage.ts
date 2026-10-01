@@ -10,6 +10,7 @@ import type { AssetMetadata, StorageAdapter, SaveFileAssetInput, StoredAssetReco
 import { StorageConflictError, StorageNotFoundError } from "./storage-types.js";
 
 const BUCKET = "vpo-private";
+export function validStorageRange(status:number,contentRange:string|null,start:number,end:number,total:number){return status===206&&contentRange===`bytes ${start}-${end}/${total}`;}
 function failure(message: string, error: { message: string } | null) {
   if (error) throw new Error(`${message}: ${error.message}`);
 }
@@ -128,13 +129,14 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     if (error) { await this.client.storage.from(BUCKET).remove([objectPath]); throw new Error(`Could not register media: ${error.message}`); } return record;
   }
   async openAsset(ownerId: string, id: string, range?: { start: number; end: number }) {
-    const { data, error } = await this.client.from("assets").select("id,user_id,run_id,bucket_id,object_path,purpose,media_type,byte_size,sha256,original_filename,detected_metadata,validation,media_version").eq("id", id).eq("user_id", ownerId).maybeSingle();
-    failure("Could not read asset record", error); if (!data) throw new StorageNotFoundError("Asset was not found.");
+    const record = await this.getAssetRecord(ownerId,id),{data,error}=await this.client.from("assets").select("bucket_id,object_path").eq("id",id).eq("user_id",ownerId).maybeSingle();failure("Could not read asset record",error);if(!data)throw new StorageNotFoundError("Asset was not found.");
     const objectUrl = `${settings.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/authenticated/${encodeURIComponent(data.bucket_id)}/${String(data.object_path).split("/").map(encodeURIComponent).join("/")}`;
     const downloaded = await fetch(objectUrl, { headers: { Authorization: `Bearer ${settings.supabaseSecretKey}`, apikey: settings.supabaseSecretKey, ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}) } });
     if (!downloaded.ok || !downloaded.body) throw new Error(`Could not stream asset: Storage returned ${downloaded.status}.`);
-    return { record: { id: data.id, ownerId: data.user_id, runId: data.run_id, purpose: data.purpose, mediaType: data.media_type, byteSize: Number(data.byte_size), sha256: data.sha256, originalFilename: data.original_filename, detectedMetadata: data.detected_metadata, validation: data.validation, mediaVersion: data.media_version }, stream: Readable.fromWeb(downloaded.body as import("node:stream/web").ReadableStream) };
+    if(range&&!validStorageRange(downloaded.status,downloaded.headers.get("content-range"),range.start,range.end,record.byteSize)){await downloaded.body.cancel().catch(()=>{});throw new Error("Storage did not return the requested byte range.");}
+    return { record, stream: Readable.fromWeb(downloaded.body as import("node:stream/web").ReadableStream) };
   }
+  async getAssetRecord(ownerId:string,id:string){const{data,error}=await this.client.from("assets").select("id,user_id,run_id,purpose,media_type,byte_size,sha256,original_filename,detected_metadata,validation,media_version").eq("id",id).eq("user_id",ownerId).maybeSingle();failure("Could not read asset record",error);if(!data)throw new StorageNotFoundError("Asset was not found.");return{id:data.id,ownerId:data.user_id,runId:data.run_id,purpose:data.purpose,mediaType:data.media_type,byteSize:Number(data.byte_size),sha256:data.sha256,originalFilename:data.original_filename,detectedMetadata:data.detected_metadata,validation:data.validation,mediaVersion:data.media_version};}
   async deleteAsset(ownerId: string, id: string) {
     const { data, error } = await this.client.from("assets").select("bucket_id,object_path").eq("id", id).eq("user_id", ownerId).maybeSingle(); failure("Could not read asset record", error); if (!data) throw new StorageNotFoundError("Asset was not found.");
     const removed = await this.client.storage.from(data.bucket_id).remove([data.object_path]); failure("Could not remove asset", removed.error);

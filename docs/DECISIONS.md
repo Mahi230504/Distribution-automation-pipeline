@@ -210,3 +210,10 @@ Keep independent visual checks after they caught real errors; do not remove them
 - Keep local JSON single-process and Supabase service-role queries explicitly owner-filtered. The additive migration, RPC CAS/state consumption and pgTAP policy tests are committed but not applied in this pass.
 
 Official provider documentation and retrieval date are recorded in `STEP5C-DESIGN.md`.
+
+### 2026-10-02 — Step 5C recovery correction
+
+- Persist an explicit retry-safety class and allowed action on every destination job. A generic terminal-state Retry is unsafe: unknown outcomes reconcile, expired authorization reconnects the exact bound connection, and capability/configuration blockers require attention.
+- Use claim fences at every provider effect and one claim-bound secret/public-checkpoint commit. Local mode journals the pair for crash recovery; Supabase uses an additive transaction RPC and owner/run/job registry. CAS retries reuse prepared IDs, times and events.
+- Persist bounded poll/backoff timing and honor valid `Retry-After`. Approval supersession stops new external writes while permitting only read-only inspection needed to retain evidence for an already-created artifact.
+- Treat injected transport tests as protocol-shape evidence only. They do not establish provider account eligibility, OAuth approval, upload success or external publication.

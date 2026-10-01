@@ -55,6 +55,8 @@ export const settings = {
   linkedinApiVersion: process.env.LINKEDIN_API_VERSION ?? "202609",
   providerTimeoutMs: number("PROVIDER_TIMEOUT_MS", 30000),
   providerResponseLimitBytes: number("PROVIDER_RESPONSE_LIMIT_BYTES", 1048576),
+  providerPollBaseMs: Math.max(250, number("PROVIDER_POLL_BASE_MS", 2000)),
+  providerPollMaxMs: Math.max(1000, number("PROVIDER_POLL_MAX_MS", 60000)),
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
   supabaseSecretKey: process.env.SUPABASE_SECRET_KEY ?? "",

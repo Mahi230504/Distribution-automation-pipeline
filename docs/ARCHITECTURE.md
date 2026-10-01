@@ -448,6 +448,8 @@ Existing files under `backend/data` are neither rewritten nor uploaded. No impor
 
 ### Step 5C publication boundary
 
+Publication jobs carry an explicit allowed action (`retry`, `reconcile`, `reconnect`, `inspect` or none), retry-safety class, persisted `nextAttemptAt`/backoff and an expiring monotonic claim fence. Provider writes re-check both the fence and exact active approval immediately before the effect. Secret upload state and its matching public checkpoint commit together through a recoverable local journal or Supabase transaction RPC; old workers cannot overwrite a newer fence. Approval supersession permits read-only evidence polling for an existing artifact but blocks every later creation action.
+
 Publication execution is stored separately from the immutable release candidate. A server-recomputed approval fingerprint feeds an atomic batch containing one intent and logical job per exact approved destination/target. A unique idempotency fingerprint and fenced worker claim make request/CAS/restart repeats converge on the same job. Jobs preserve upload, processing, final-creation and reconciliation evidence independently, so one destination cannot erase or replay another.
 
 Connection secrets, OAuth state and signed upload/session URLs never enter run snapshots. They use a separate encrypted vault. The public OAuth callback consumes hashed state once and uses its stored owner; authenticated API requests never accept owner IDs. The TEST adapter follows the production state machine but contains no HTTP/DNS operation; a network-deny test verifies zero requests. Private final media is range-streamed from the existing owner-scoped asset adapter.
