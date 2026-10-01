@@ -127,11 +127,11 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     const { error } = await this.client.from("assets").insert({ id, user_id: ownerId, run_id: runId, bucket_id: BUCKET, object_path: objectPath, purpose: record.purpose, asset_kind: "final-video", media_type: record.mediaType, byte_size: record.byteSize, sha256: record.sha256, original_filename: record.originalFilename, detected_metadata: record.detectedMetadata, validation: record.validation, media_version: record.mediaVersion });
     if (error) { await this.client.storage.from(BUCKET).remove([objectPath]); throw new Error(`Could not register media: ${error.message}`); } return record;
   }
-  async openAsset(ownerId: string, id: string) {
+  async openAsset(ownerId: string, id: string, range?: { start: number; end: number }) {
     const { data, error } = await this.client.from("assets").select("id,user_id,run_id,bucket_id,object_path,purpose,media_type,byte_size,sha256,original_filename,detected_metadata,validation,media_version").eq("id", id).eq("user_id", ownerId).maybeSingle();
     failure("Could not read asset record", error); if (!data) throw new StorageNotFoundError("Asset was not found.");
     const objectUrl = `${settings.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/authenticated/${encodeURIComponent(data.bucket_id)}/${String(data.object_path).split("/").map(encodeURIComponent).join("/")}`;
-    const downloaded = await fetch(objectUrl, { headers: { Authorization: `Bearer ${settings.supabaseSecretKey}`, apikey: settings.supabaseSecretKey } });
+    const downloaded = await fetch(objectUrl, { headers: { Authorization: `Bearer ${settings.supabaseSecretKey}`, apikey: settings.supabaseSecretKey, ...(range ? { Range: `bytes=${range.start}-${range.end}` } : {}) } });
     if (!downloaded.ok || !downloaded.body) throw new Error(`Could not stream asset: Storage returned ${downloaded.status}.`);
     return { record: { id: data.id, ownerId: data.user_id, runId: data.run_id, purpose: data.purpose, mediaType: data.media_type, byteSize: Number(data.byte_size), sha256: data.sha256, originalFilename: data.original_filename, detectedMetadata: data.detected_metadata, validation: data.validation, mediaVersion: data.media_version }, stream: Readable.fromWeb(downloaded.body as import("node:stream/web").ReadableStream) };
   }

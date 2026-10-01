@@ -13,6 +13,10 @@ import { repairRouter } from "./repair-routes.js";
 import { authenticate, owner } from "./auth.js";
 import { releaseRouter } from "./release-routes.js";
 import { releaseReadView } from "./release.js";
+import { publicationStorage } from "./publication-storage.js";
+import { oauthCallbackRouter, publicationRouter } from "./publication-routes.js";
+import { recoverPublicationJobs } from "./publication-runner.js";
+import { parseKeyRing } from "./token-vault.js";
 const platform = z.enum(["instagram_reels", "youtube_shorts", "linkedin"]);
 const brief = z.object({
   interpretation: interpretationSchema.optional(),
@@ -40,7 +44,10 @@ const brand = z.object({
   preferredPlatforms: z.array(platform),
 });
 await storage.init();
+if (settings.publishMode === "live") parseKeyRing();
+await publicationStorage.init();
 await recover();
+await recoverPublicationJobs();
 const app = express();
 app.disable("x-powered-by");
 app.use((req, res, next) => {
@@ -53,7 +60,7 @@ app.use((req, res, next) => {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-VPO-Filename, X-VPO-Release-Revision, X-VPO-Storyboard-Lineage, X-VPO-Active-Media-Version");
-    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,DELETE,OPTIONS");
   }
   if (req.method === "OPTIONS") {
     res.sendStatus(204);
@@ -62,18 +69,21 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: Math.ceil(settings.uploadBytes * 1.4) + 1024 }));
+app.use(oauthCallbackRouter);
 app.get("/api/health", async (_req, res) => {
   const h = await health();
   res.status(h.healthy ? 200 : 503).json({
     ...h,
     authMode: settings.authMode,
     storageMode: settings.storageMode,
+    publishMode: settings.publishMode,
   });
 });
 app.use("/api", authenticate);
 app.use(repairRouter);
 app.use(generationRouter);
 app.use(releaseRouter);
+app.use(publicationRouter);
 app.get("/api/brand-kit", async (req, res) =>
   res.json(await storage.getBrandKit(owner(req))),
 );
@@ -188,6 +198,9 @@ const server = app.listen(settings.port, "127.0.0.1", () =>
 );
 for (const signal of ["SIGTERM", "SIGINT"] as const)
   process.on(signal, () => {
-    server.close();
-    process.exit(0);
+    server.close(async () => {
+      await publicationStorage.close();
+      await storage.close();
+      process.exit(0);
+    });
   });

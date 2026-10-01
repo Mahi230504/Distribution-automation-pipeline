@@ -30,7 +30,7 @@ export interface StorageAdapter {
   saveImage(ownerId: string, runId: string, bytes: Buffer, metadata?: AssetMetadata): Promise<string>;
   readImage(ownerId: string, id: string): Promise<Buffer>;
   saveAssetFromFile(ownerId: string, runId: string, input: SaveFileAssetInput): Promise<StoredAssetRecord>;
-  openAsset(ownerId: string, id: string): Promise<OpenAssetResult>;
+  openAsset(ownerId: string, id: string, range?: { start: number; end: number }): Promise<OpenAssetResult>;
   deleteAsset(ownerId: string, id: string): Promise<void>;
 }
 

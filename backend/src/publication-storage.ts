@@ -1,0 +1,69 @@
+import { mkdir, readFile, readdir, rename, unlink, writeFile } from "node:fs/promises";
+import path from "node:path";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { settings } from "./settings.js";
+import { emptyPublication, type ConnectionSecret, type OAuthStateRecord, type PlatformConnection, type PublicationAggregate, type TokenEnvelope } from "./publication-types.js";
+import { StorageConflictError, StorageNotFoundError } from "./storage-types.js";
+
+export interface PublicationStorage {
+  init():Promise<void>; close():Promise<void>;
+  listConnections(ownerId:string):Promise<PlatformConnection[]>;
+  getConnection(ownerId:string,id:string):Promise<PlatformConnection>;
+  putConnection(connection:PlatformConnection,expectedRevision?:number):Promise<PlatformConnection>;
+  putConnectionSecret(secret:ConnectionSecret):Promise<void>;
+  getConnectionSecret(ownerId:string,connectionId:string):Promise<ConnectionSecret>;
+  deleteConnectionSecret(ownerId:string,connectionId:string):Promise<void>;
+  createOAuthState(record:OAuthStateRecord):Promise<void>;
+  consumeOAuthState(stateHash:string,provider:string,cookieHash:string,consumedAt:string):Promise<OAuthStateRecord>;
+  getAggregate(ownerId:string,runId:string):Promise<PublicationAggregate>;
+  putAggregate(next:PublicationAggregate,expectedRevision:number):Promise<PublicationAggregate>;
+  listRecoverableAggregates():Promise<PublicationAggregate[]>;
+  putJobSecret(ownerId:string,jobId:string,envelope:TokenEnvelope):Promise<void>;
+  getJobSecret(ownerId:string,jobId:string):Promise<TokenEnvelope|undefined>;
+}
+
+let root=path.resolve(settings.dataPath,"publication");let serialWrites:Promise<unknown>=Promise.resolve();
+function serial<T>(fn:()=>Promise<T>){const next=serialWrites.then(fn);serialWrites=next.catch(()=>{});return next;}
+function safe(value:string){if(!/^[A-Za-z0-9_-]+$/.test(value))throw new Error("Invalid publication identifier.");return value;}
+async function read<T>(name:string):Promise<T|undefined>{try{return JSON.parse(await readFile(path.join(root,name),"utf8")) as T;}catch(error){if((error as NodeJS.ErrnoException).code==="ENOENT")return;throw error;}}
+async function write(name:string,value:unknown){const target=path.join(root,name),tmp=`${target}.tmp`;await writeFile(tmp,JSON.stringify(value,null,2),{mode:0o600});await rename(tmp,target);}
+const connectionFile=(owner:string)=>`connections-${safe(owner)}.json`,aggregateFile=(owner:string,run:string)=>`run-${safe(owner)}-${safe(run)}.json`,secretFile=(owner:string,id:string)=>`secret-${safe(owner)}-${safe(id)}.json`,jobSecretFile=(owner:string,id:string)=>`job-secret-${safe(owner)}-${safe(id)}.json`,stateFile=(hash:string)=>`oauth-${safe(hash)}.json`;
+
+export class LocalPublicationStorage implements PublicationStorage{
+  constructor(dataPath=settings.dataPath){root=path.resolve(dataPath,"publication");}
+  async init(){await mkdir(root,{recursive:true});}async close(){await serialWrites;}
+  async listConnections(ownerId:string){await serialWrites;return await read<PlatformConnection[]>(connectionFile(ownerId))??[];}
+  async getConnection(ownerId:string,id:string){const item=(await this.listConnections(ownerId)).find(v=>v.id===id);if(!item)throw new StorageNotFoundError("Connection was not found.");return item;}
+  putConnection(connection:PlatformConnection,expectedRevision?:number){return serial(async()=>{const all=await read<PlatformConnection[]>(connectionFile(connection.ownerId))??[],index=all.findIndex(v=>v.id===connection.id),current=index<0?undefined:all[index];if(expectedRevision!==undefined&&current?.revision!==expectedRevision)throw new StorageConflictError("The connection changed. Refresh and try again.");if(current&&current.ownerId!==connection.ownerId)throw new StorageNotFoundError("Connection was not found.");if(index<0)all.push(connection);else all[index]=connection;await write(connectionFile(connection.ownerId),all);return connection;});}
+  putConnectionSecret(secret:ConnectionSecret){return serial(()=>write(secretFile(secret.ownerId,secret.connectionId),secret));}
+  async getConnectionSecret(ownerId:string,connectionId:string){await this.getConnection(ownerId,connectionId);const item=await read<ConnectionSecret>(secretFile(ownerId,connectionId));if(!item)throw new StorageNotFoundError("Connection authorization was not found.");return item;}
+  async deleteConnectionSecret(ownerId:string,connectionId:string){await this.getConnection(ownerId,connectionId);await unlink(path.join(root,secretFile(ownerId,connectionId))).catch(()=>{});}
+  createOAuthState(record:OAuthStateRecord){return serial(async()=>{if(await read(stateFile(record.stateHash)))throw new StorageConflictError("OAuth state already exists.");await write(stateFile(record.stateHash),record);});}
+  consumeOAuthState(stateHash:string,provider:string,cookieHash:string,consumedAt:string){return serial(async()=>{const name=stateFile(stateHash),record=await read<OAuthStateRecord>(name);if(!record||record.provider!==provider||record.cookieHash!==cookieHash)throw new StorageNotFoundError("This connection request is invalid or has already been used.");if(record.consumedAt||Date.parse(record.expiresAt)<=Date.parse(consumedAt))throw new StorageNotFoundError("This connection request expired or has already been used.");const consumed={...record,consumedAt};await write(name,consumed);return consumed;});}
+  async getAggregate(ownerId:string,runId:string){await serialWrites;return await read<PublicationAggregate>(aggregateFile(ownerId,runId))??emptyPublication(ownerId,runId);}
+  putAggregate(next:PublicationAggregate,expectedRevision:number){return serial(async()=>{const current=await read<PublicationAggregate>(aggregateFile(next.ownerId,next.runId))??emptyPublication(next.ownerId,next.runId);if(current.revision!==expectedRevision)throw new StorageConflictError("Publication state changed. Refresh and try again.");if(next.ownerId!==current.ownerId||next.runId!==current.runId)throw new Error("Publication ownership cannot change.");const saved={...next,revision:expectedRevision+1};await write(aggregateFile(next.ownerId,next.runId),saved);return saved;});}
+  async listRecoverableAggregates(){await serialWrites;const names=await readdir(root);const values=await Promise.all(names.filter(v=>/^run-.*\.json$/.test(v)).map(v=>read<PublicationAggregate>(v)));return values.filter((v):v is PublicationAggregate=>!!v&&v.jobs.some(j=>!["externally_published","failed","needs_reconnect","needs_attention","unknown","superseded"].includes(j.state)));}
+  putJobSecret(ownerId:string,jobId:string,envelope:TokenEnvelope){return serial(()=>write(jobSecretFile(ownerId,jobId),envelope));}
+  async getJobSecret(ownerId:string,jobId:string){return read<TokenEnvelope>(jobSecretFile(ownerId,jobId));}
+}
+
+function fail(message:string,error:{message:string}|null){if(error)throw new Error(`${message}: ${error.message}`);}
+export class SupabasePublicationStorage implements PublicationStorage{
+  constructor(private client:SupabaseClient=createClient(settings.supabaseUrl,settings.supabaseSecretKey,{auth:{persistSession:false,autoRefreshToken:false}})){}
+  async init(){const result=await this.client.from("publication_runs").select("run_id").limit(1);fail("Supabase publication storage is unavailable",result.error);}async close(){}
+  async listConnections(ownerId:string){const result=await this.client.from("platform_connections").select("metadata").eq("user_id",ownerId);fail("Could not list connections",result.error);return(result.data??[]).map(v=>v.metadata as PlatformConnection);}
+  async getConnection(ownerId:string,id:string){const result=await this.client.from("platform_connections").select("metadata").eq("user_id",ownerId).eq("id",id).maybeSingle();fail("Could not read connection",result.error);if(!result.data)throw new StorageNotFoundError("Connection was not found.");return result.data.metadata as PlatformConnection;}
+  async putConnection(value:PlatformConnection,expectedRevision?:number){const row={id:value.id,user_id:value.ownerId,provider:value.provider,revision:value.revision,metadata:value,updated_at:value.updatedAt};if(expectedRevision===undefined){const result=await this.client.from("platform_connections").upsert(row,{onConflict:"id,user_id"});fail("Could not save connection",result.error);return value;}const result=await this.client.from("platform_connections").update(row).eq("id",value.id).eq("user_id",value.ownerId).eq("revision",expectedRevision).select("id");fail("Could not save connection",result.error);if(!result.data?.length)throw new StorageConflictError("The connection changed. Refresh and try again.");return value;}
+  async putConnectionSecret(value:ConnectionSecret){const result=await this.client.from("platform_connection_secrets").upsert({connection_id:value.connectionId,user_id:value.ownerId,envelope:value.envelope,updated_at:value.updatedAt},{onConflict:"connection_id,user_id"});fail("Could not save connection authorization",result.error);}
+  async getConnectionSecret(ownerId:string,connectionId:string){await this.getConnection(ownerId,connectionId);const result=await this.client.from("platform_connection_secrets").select("envelope,updated_at").eq("connection_id",connectionId).eq("user_id",ownerId).maybeSingle();fail("Could not read connection authorization",result.error);if(!result.data)throw new StorageNotFoundError("Connection authorization was not found.");return{ownerId,connectionId,envelope:result.data.envelope as TokenEnvelope,updatedAt:String(result.data.updated_at)};}
+  async deleteConnectionSecret(ownerId:string,connectionId:string){const result=await this.client.from("platform_connection_secrets").delete().eq("connection_id",connectionId).eq("user_id",ownerId);fail("Could not remove connection authorization",result.error);}
+  async createOAuthState(value:OAuthStateRecord){const result=await this.client.from("oauth_states").insert({id:value.id,state_hash:value.stateHash,user_id:value.ownerId,provider:value.provider,record:value,expires_at:value.expiresAt});fail("Could not save OAuth state",result.error);}
+  async consumeOAuthState(stateHash:string,provider:string,cookieHash:string,consumedAt:string){const result=await this.client.rpc("consume_oauth_state",{p_state_hash:stateHash,p_provider:provider,p_cookie_hash:cookieHash,p_consumed_at:consumedAt});fail("Could not consume OAuth state",result.error);if(!result.data)throw new StorageNotFoundError("This connection request is invalid or has already been used.");return result.data as OAuthStateRecord;}
+  async getAggregate(ownerId:string,runId:string){const result=await this.client.from("publication_runs").select("snapshot").eq("user_id",ownerId).eq("run_id",runId).maybeSingle();fail("Could not read publication state",result.error);return result.data?result.data.snapshot as PublicationAggregate:emptyPublication(ownerId,runId);}
+  async putAggregate(next:PublicationAggregate,expectedRevision:number){const result=await this.client.rpc("put_publication_run",{p_user_id:next.ownerId,p_run_id:next.runId,p_expected_revision:expectedRevision,p_snapshot:{...next,revision:expectedRevision+1}});fail("Could not save publication state",result.error);if(!result.data)throw new StorageConflictError("Publication state changed. Refresh and try again.");return{...next,revision:expectedRevision+1};}
+  async listRecoverableAggregates(){const result=await this.client.from("publication_runs").select("snapshot");fail("Could not list publication jobs",result.error);return(result.data??[]).map(v=>v.snapshot as PublicationAggregate).filter(v=>v.jobs.some(j=>!["externally_published","failed","needs_reconnect","needs_attention","unknown","superseded"].includes(j.state)));}
+  async putJobSecret(ownerId:string,jobId:string,envelope:TokenEnvelope){const result=await this.client.from("publication_job_secrets").upsert({job_id:jobId,user_id:ownerId,envelope},{onConflict:"job_id,user_id"});fail("Could not save private job checkpoint",result.error);}
+  async getJobSecret(ownerId:string,jobId:string){const result=await this.client.from("publication_job_secrets").select("envelope").eq("job_id",jobId).eq("user_id",ownerId).maybeSingle();fail("Could not read private job checkpoint",result.error);return result.data?.envelope as TokenEnvelope|undefined;}
+}
+
+export const publicationStorage:PublicationStorage=settings.storageMode==="supabase"?new SupabasePublicationStorage():new LocalPublicationStorage();

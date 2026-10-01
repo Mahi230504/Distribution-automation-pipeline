@@ -1,0 +1,23 @@
+import type { ReleaseDestination } from "../../frontend/lib/types.js";
+
+export type Provider = "youtube" | "instagram" | "linkedin";
+export type PublishProvenance = "test" | "live";
+export type ConnectionStatus = "connected" | "needs_reconnect" | "needs_attention" | "disconnected";
+export type PublicationState = "queued" | "upload_session_created" | "uploading" | "upload_complete" | "provider_processing" | "creation_pending" | "externally_published" | "failed" | "needs_reconnect" | "needs_attention" | "unknown" | "superseded";
+
+export interface ProviderTarget { id:string; type:"channel"|"instagram_account"|"member"|"organization"; label:string; eligible:boolean; capabilityRevision:number; reason?:string; }
+export interface PlatformConnection { id:string; ownerId:string; provider:Provider; accountId:string; accountLabel:string; status:ConnectionStatus; grantedScopes:string[]; expiresAt?:string; targets:ProviderTarget[]; revision:number; createdAt:string; updatedAt:string; provenance:PublishProvenance; disconnectNote?:string; }
+export interface TokenEnvelope { version:1; keyId:string; nonce:string; tag:string; ciphertext:string; }
+export interface ConnectionSecret { ownerId:string; connectionId:string; envelope:TokenEnvelope; updatedAt:string; }
+export interface OAuthStateRecord { id:string; stateHash:string; ownerId:string; provider:Provider; initiationId:string; returnPath:string; cookieHash:string; expiresAt:string; consumedAt?:string; pkce?:TokenEnvelope; }
+export interface TargetBinding { platform:ReleaseDestination; connectionId:string; targetId:string; targetType:ProviderTarget["type"]; targetLabel:string; capabilityRevision:number; revision:number; updatedAt:string; }
+export interface PublicationIntent { id:string; ownerId:string; runId:string; batchId:string; approvalId:string; approvalEpoch:number; approvalFingerprint:string; platform:ReleaseDestination; connectionId:string; target:TargetBinding; payload:Record<string,unknown>; payloadHash:string; youtubePrivacy?:"private"|"unlisted"|"public"; idempotencyFingerprint:string; provenance:PublishProvenance; createdAt:string; status:"prepared"|"started"|"superseded"; }
+export interface ProviderEvidence { uploadSessionId?:string; uploadBytes?:number; processingState?:string; containerId?:string; videoId?:string; videoUrn?:string; mediaId?:string; postId?:string; visibility?:string; audience?:string; resultUrl?:string; providerRequestId?:string; }
+export interface PublicationAttempt { id:string; at:string; kind:"claim"|"checkpoint"|"retry"|"reconcile"|"error"|"superseded"; message:string; from?:PublicationState; to?:PublicationState; }
+export interface PublicationJob { id:string; ownerId:string; runId:string; intentId:string; platform:ReleaseDestination; state:PublicationState; checkpoint:string; revision:number; activeClaim?:{id:string;revision:number;expiresAt:string}; attemptCount:number; retryClass?:"transport"|"rate_limit"|"auth"|"payload"|"processing"|"ambiguous"; sanitizedError?:string; nextAction?:string; evidence:ProviderEvidence; attempts:PublicationAttempt[]; createdAt:string; updatedAt:string; lastReconciledAt?:string; }
+export interface PublicationBatch { id:string; ownerId:string; runId:string; approvalId:string; approvalFingerprint:string; confirmationFingerprint:string; provenance:PublishProvenance; createdAt:string; intentIds:string[]; jobIds:string[]; }
+export interface PublicationAggregate { schemaVersion:1; ownerId:string; runId:string; revision:number; bindings:TargetBinding[]; batches:PublicationBatch[]; intents:PublicationIntent[]; jobs:PublicationJob[]; }
+export interface PublicationView { publishingMode:PublishProvenance; connections:PlatformConnection[]; aggregate:PublicationAggregate; blockers:string[]; }
+
+export const providerForDestination=(value:ReleaseDestination):Provider=>value==="youtube_shorts"?"youtube":value==="instagram_reels"?"instagram":"linkedin";
+export const emptyPublication=(ownerId:string,runId:string):PublicationAggregate=>({schemaVersion:1,ownerId,runId,revision:0,bindings:[],batches:[],intents:[],jobs:[]});

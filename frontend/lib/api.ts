@@ -14,6 +14,9 @@ import {
   PackQuote,
   ReleasePackContent,
   ReleaseDestination,
+  PublicationView,
+  PlatformConnection,
+  PublicationAggregate,
 } from "./types";
 import {
   generateAiCallLogEntry,
@@ -543,6 +546,17 @@ export async function uploadFinalMedia(run: Run, file: File, progress: (n: numbe
   return new Promise((resolve, reject) => { const xhr = new XMLHttpRequest(); xhr.open("POST", `${API_URL}/api/runs/${run.id}/final-media`); xhr.responseType = "json"; xhr.setRequestHeader("Content-Type", "application/octet-stream"); xhr.setRequestHeader("X-VPO-Filename", encodeURIComponent(file.name)); xhr.setRequestHeader("X-VPO-Release-Revision", String(release.revision)); xhr.setRequestHeader("X-VPO-Storyboard-Lineage", release.readiness.storyboardLineage!); xhr.setRequestHeader("X-VPO-Active-Media-Version", release.activeMediaVersionId ?? "none"); if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`); xhr.upload.onprogress = e => { if (e.lengthComputable) progress(Math.round(e.loaded/e.total*100)); }; xhr.onerror = () => reject(new ApiError("Upload failed. Check the backend and try again.")); xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve(xhr.response as Run) : reject(new ApiError(xhr.response?.error ?? "Video was rejected.")); xhr.send(file); });
 }
 export async function fetchDownload(path: string): Promise<Blob> { return fetchAsset(path); }
+
+// ---------- Connections and publication ----------
+export async function getPublications(runId:string):Promise<PublicationView>{if(isSampleMode())throw new ApiError("Publishing requires the configured backend.");return realFetch(`/api/runs/${runId}/publications`);}
+export async function simulateConnection(provider:"youtube"|"instagram"|"linkedin",scenario:"success"|"processing"|"failure"|"reconnect"|"ambiguous"="success"):Promise<PlatformConnection>{return realFetch(`/api/connections/${provider}/simulate`,{method:"POST",body:JSON.stringify({scenario})});}
+export async function startOAuth(provider:"youtube"|"instagram"|"linkedin",returnPath:string):Promise<{authorizationUrl:string}>{return realFetch(`/api/connections/${provider}/oauth/start`,{method:"POST",body:JSON.stringify({returnPath})});}
+export async function savePublicationTarget(runId:string,platform:ReleaseDestination,connectionId:string,targetId:string,expectedBindingRevision:number,expectedPublicationRevision:number):Promise<PublicationAggregate>{return realFetch(`/api/runs/${runId}/publication-targets/${platform}`,{method:"PUT",body:JSON.stringify({connectionId,targetId,expectedBindingRevision,expectedPublicationRevision})});}
+export async function publishApproved(runId:string,input:{approvalId:string;confirmationFingerprint:string;expectedPublicationRevision:number;bindingRevisions:Record<string,number>;youtubePrivacy:"private"|"unlisted"|"public";confirmExternalPublication:true}){return realFetch<{batch:unknown;jobs:unknown[];publicationRevision:number}>(`/api/runs/${runId}/publications`,{method:"POST",body:JSON.stringify(input)});}
+export async function retryPublication(runId:string,jobId:string,expectedJobRevision:number){return realFetch(`/api/runs/${runId}/publications/jobs/${jobId}/retry`,{method:"POST",body:JSON.stringify({expectedJobRevision})});}
+export async function reconcilePublication(runId:string,jobId:string,expectedJobRevision:number){return realFetch(`/api/runs/${runId}/publications/jobs/${jobId}/reconcile`,{method:"POST",body:JSON.stringify({expectedJobRevision})});}
+export async function retryFailedPublications(runId:string,expectedPublicationRevision:number){return realFetch(`/api/runs/${runId}/publications/retry-failed`,{method:"POST",body:JSON.stringify({expectedPublicationRevision})});}
+export async function disconnectConnection(connectionId:string,expectedRevision:number):Promise<PlatformConnection>{return realFetch(`/api/connections/${connectionId}`,{method:"DELETE",body:JSON.stringify({expectedRevision,confirm:true})});}
 
 // ---------- Brand kit ----------
 

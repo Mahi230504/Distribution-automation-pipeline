@@ -87,7 +87,7 @@ Both `/frontend` and `/backend` now exist. Story through approved Storyboard, ve
 | 4 | Direction, Look and Storyboard stages | ✅ General-purpose local pipeline verified through approved Storyboard; see docs/GENERALIZATION-VALIDATION.md for tests and limits |
 | 5A | Supabase Auth, user-owned database/private storage and protected routes | ✅ Implemented and locally tested; remote Supabase verification pending |
 | 5B | Pack generation, finished-video upload/validation and version-bound approval | ✅ Implemented locally; remote Supabase verification pending |
-| 5C | YouTube, Instagram and LinkedIn publishing with jobs/recovery | ⬜ Not started |
+| 5C | YouTube, Instagram and LinkedIn publishing with jobs/recovery | ✅ Implemented in TEST publishing mode; live provider verification pending |
 | 6 | Backend deployed to Render, whole flow live end to end | ⬜ Not started |
 | 7 | Hardening: Autopilot, per-user daily limits, a Usage page, error tracking, full error states, README | ⬜ Not started |
 

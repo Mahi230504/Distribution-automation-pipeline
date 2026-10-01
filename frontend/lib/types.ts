@@ -279,6 +279,17 @@ export interface ReleaseState {
   activeApprovalId?: string; packQuotes: PackQuote[]; packIntents: PackIntent[];
 }
 
+export type PublishingProvider = "youtube" | "instagram" | "linkedin";
+export type PublicationState = "queued" | "upload_session_created" | "uploading" | "upload_complete" | "provider_processing" | "creation_pending" | "externally_published" | "failed" | "needs_reconnect" | "needs_attention" | "unknown" | "superseded";
+export interface ProviderTarget { id:string; type:"channel"|"instagram_account"|"member"|"organization"; label:string; eligible:boolean; capabilityRevision:number; reason?:string; }
+export interface PlatformConnection { id:string; ownerId:string; provider:PublishingProvider; accountId:string; accountLabel:string; status:"connected"|"needs_reconnect"|"needs_attention"|"disconnected"; grantedScopes:string[]; expiresAt?:string; targets:ProviderTarget[]; revision:number; createdAt:string; updatedAt:string; provenance:"test"|"live"; disconnectNote?:string; }
+export interface TargetBinding { platform:ReleaseDestination; connectionId:string; targetId:string; targetType:ProviderTarget["type"]; targetLabel:string; capabilityRevision:number; revision:number; updatedAt:string; }
+export interface PublicationAttempt { id:string; at:string; kind:string; message:string; from?:PublicationState; to?:PublicationState; }
+export interface PublicationJob { id:string; ownerId:string; runId:string; intentId:string; platform:ReleaseDestination; state:PublicationState; checkpoint:string; revision:number; attemptCount:number; sanitizedError?:string; nextAction?:string; evidence:{uploadSessionId?:string;uploadBytes?:number;processingState?:string;containerId?:string;videoId?:string;videoUrn?:string;mediaId?:string;postId?:string;visibility?:string;audience?:string;resultUrl?:string}; attempts:PublicationAttempt[]; createdAt:string; updatedAt:string; }
+export interface PublicationBatch { id:string; approvalId:string; confirmationFingerprint:string; provenance:"test"|"live"; createdAt:string; jobIds:string[]; }
+export interface PublicationAggregate { revision:number; bindings:TargetBinding[]; batches:PublicationBatch[]; jobs:PublicationJob[]; }
+export interface PublicationView { publishingMode:"test"|"live"; aiProvenance:"test"|"live"|"unknown"; approvalId?:string; approvalFingerprint?:string; confirmationFingerprint?:string; connections:PlatformConnection[]; aggregate:PublicationAggregate; blockers:string[]; }
+
 export interface Brief {
   topic: string;
   audience: string;

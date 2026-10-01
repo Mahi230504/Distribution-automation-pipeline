@@ -199,3 +199,14 @@ Keep independent visual checks after they caught real errors; do not remove them
 - Finished video is a private generalized asset. Server inspection uses `ffprobe`; the classroom profile is MP4/H.264, optional AAC, vertical 1080×1920 or 720×1280, 15–60 seconds and at most 100 MiB.
 - Approval explicitly and idempotently binds exact versions, media SHA-256, canonical destinations, Pack provenance, policy fingerprint and approval epoch. A canonical readiness fingerprint is rechecked before approval, ZIP export and approved-video download. Supersession is a separate audit event. Reopen returns to final review; a separate stale-safe action returns an unapproved review to Pack editing. Export is a metadata/copy ZIP plus a separate authenticated MP4.
 - YouTube metadata limits use current official documentation. Numeric Instagram and LinkedIn editorial limits are labelled classroom rules where current official pages did not expose a verifiable number. See `STEP5B-DESIGN.md`.
+
+## 2026-10-02 — Step 5C: exact-approval publishing jobs
+
+- Keep `PUBLISH_MODE` independent from Gemini `TEST_MODE`. Test publishing is the default; its adapter contains no HTTP/DNS operation and a network-deny test proves zero requests. Both provenances are bound and shown; a deliberately authorized future LIVE publication is not inferred from AI provenance.
+- Store connections, OAuth state, targets and publication aggregates outside release snapshots. Store tokens and upload/session URLs only as versioned AES-256-GCM envelopes with fresh nonces and owner/provider/record AAD. The browser has no raw table grant.
+- Prepare the complete canonical destination batch before scheduling. Per-target idempotency binds the exact approval, payload, target capability revision and YouTube privacy. Fenced claims and append-only checkpoints prevent an old worker from overwriting newer evidence.
+- Treat upload acceptance, provider processing and external post creation as different evidence. Partial success is durable. Ambiguous final creation is `unknown` and is reconciled or inspected, never blindly repeated.
+- Support YouTube resumable sessions and LinkedIn instructed ranges in the LIVE reference adapters. Capability-block LIVE Instagram until the current official Instagram Login private binary path is verified; do not create a permanent public media URL as a workaround.
+- Keep local JSON single-process and Supabase service-role queries explicitly owner-filtered. The additive migration, RPC CAS/state consumption and pgTAP policy tests are committed but not applied in this pass.
+
+Official provider documentation and retrieval date are recorded in `STEP5C-DESIGN.md`.

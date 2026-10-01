@@ -445,3 +445,9 @@ The raw-data audit found no access tokens, refresh tokens, API keys, raw provide
 AI `TEST_MODE` remains independent of identity/storage mode. Supported runtime pairs are only `AUTH_MODE=local` with `STORAGE_MODE=local_json`, or `AUTH_MODE=supabase` with `STORAGE_MODE=supabase`. Supabase mode with missing configuration stops immediately and never falls back to local or browser samples. The deterministic `test-user:` identity injection exists only when `NODE_ENV=test`; it is not a runtime mode.
 
 Existing files under `backend/data` are neither rewritten nor uploaded. No importer is run. Local mode can continue to open them; a later, explicit import tool or operation is required to place selected instructor runs in Supabase. Multi-worker job claiming and a distributed Gemini concurrency limiter remain out of scope; optimistic revisions prevent lost writes but do not authorize multiple workers yet.
+
+### Step 5C publication boundary
+
+Publication execution is stored separately from the immutable release candidate. A server-recomputed approval fingerprint feeds an atomic batch containing one intent and logical job per exact approved destination/target. A unique idempotency fingerprint and fenced worker claim make request/CAS/restart repeats converge on the same job. Jobs preserve upload, processing, final-creation and reconciliation evidence independently, so one destination cannot erase or replay another.
+
+Connection secrets, OAuth state and signed upload/session URLs never enter run snapshots. They use a separate encrypted vault. The public OAuth callback consumes hashed state once and uses its stored owner; authenticated API requests never accept owner IDs. The TEST adapter follows the production state machine but contains no HTTP/DNS operation; a network-deny test verifies zero requests. Private final media is range-streamed from the existing owner-scoped asset adapter.

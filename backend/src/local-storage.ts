@@ -118,11 +118,11 @@ export class LocalStorageAdapter implements StorageAdapter {
     const record: StoredAssetRecord = { id, ownerId, runId, purpose: input.purpose ?? "final-video", mediaType: input.mediaType ?? "video/mp4", byteSize: input.byteSize, sha256: input.sha256, originalFilename: input.originalFilename, detectedMetadata: input.detectedMetadata, validation: input.validation, mediaVersion: input.mediaVersion };
     try { await chmod(target, 0o600); await write(`asset-${id}.json`, record); } catch (e) { await unlink(target).catch(() => {}); throw e; } return record;
   }
-  async openAsset(ownerId: string, id: string) {
+  async openAsset(ownerId: string, id: string, range?: { start: number; end: number }) {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw new StorageNotFoundError("Asset was not found.");
     const record = await read<StoredAssetRecord>(`asset-${id}.json`); if (!record || record.ownerId !== ownerId) throw new StorageNotFoundError("Asset was not found.");
     const ext = record.mediaType === "video/mp4" ? "mp4" : "png"; const folder = record.mediaType === "video/mp4" ? "media" : "images";
-    return { record, stream: createReadStream(path.join(root, folder, `${id}.${ext}`)) };
+    return { record, stream: createReadStream(path.join(root, folder, `${id}.${ext}`), range) };
   }
   async deleteAsset(ownerId: string, id: string) {
     const record = await read<StoredAssetRecord>(`asset-${id}.json`); if (!record || record.ownerId !== ownerId) throw new StorageNotFoundError("Asset was not found.");

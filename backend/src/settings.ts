@@ -1,6 +1,7 @@
 import "dotenv/config";
 export type AuthMode = "local" | "supabase";
 export type StorageMode = "local_json" | "supabase";
+export type PublishMode = "test" | "live";
 
 function choice<T extends string>(name: string, fallback: T, allowed: T[]): T {
   const value = (process.env[name] ?? fallback) as T;
@@ -41,6 +42,19 @@ export const settings = {
     "local_json",
     "supabase",
   ]),
+  publishMode: choice<PublishMode>("PUBLISH_MODE", "test", ["test", "live"]),
+  publicOAuthCallbackBaseUrl: process.env.PUBLIC_OAUTH_CALLBACK_BASE_URL ?? "http://localhost:4000",
+  platformTokenKeysJson: process.env.PLATFORM_TOKEN_KEYS_JSON ?? "",
+  platformTokenActiveKeyId: process.env.PLATFORM_TOKEN_ACTIVE_KEY_ID ?? "",
+  googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
+  googleClientSecret: process.env.GOOGLE_CLIENT_SECRET ?? "",
+  metaClientId: process.env.META_CLIENT_ID ?? "",
+  metaClientSecret: process.env.META_CLIENT_SECRET ?? "",
+  linkedinClientId: process.env.LINKEDIN_CLIENT_ID ?? "",
+  linkedinClientSecret: process.env.LINKEDIN_CLIENT_SECRET ?? "",
+  linkedinApiVersion: process.env.LINKEDIN_API_VERSION ?? "202609",
+  providerTimeoutMs: number("PROVIDER_TIMEOUT_MS", 30000),
+  providerResponseLimitBytes: number("PROVIDER_RESPONSE_LIMIT_BYTES", 1048576),
   supabaseUrl: process.env.SUPABASE_URL ?? "",
   supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
   supabaseSecretKey: process.env.SUPABASE_SECRET_KEY ?? "",
@@ -88,14 +102,15 @@ if (
   );
 export function safeError(error: unknown) {
   let message = error instanceof Error ? error.message : String(error);
-  for (const secret of [settings.key, settings.supabaseSecretKey])
+  for (const secret of [settings.key, settings.supabaseSecretKey, settings.googleClientSecret, settings.metaClientSecret, settings.linkedinClientSecret])
     if (secret) message = message.split(secret).join("[REDACTED]");
   return message
     .replace(/(?:\/Users\/|\/home\/|\/tmp\/)[^\s"']+/g, "[private path]")
     .replace(/AIza[\w-]+/g, "[REDACTED]")
     .replace(/sb_secret_[\w.-]+/g, "[REDACTED]")
     .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[REDACTED]")
-    .replace(/([?&]key=)[^&\s]+/g, "$1[REDACTED]");
+    .replace(/([?&](?:key|code|state|access_token|refresh_token)=)[^&\s]+/gi, "$1[REDACTED]")
+    .replace(/(Bearer\s+)[A-Za-z0-9._~-]+/gi, "$1[REDACTED]");
 }
 
 if (settings.promptThreshold > 100 || settings.frameThreshold > 100)
