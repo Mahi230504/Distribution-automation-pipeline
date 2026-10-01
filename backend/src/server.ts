@@ -191,9 +191,9 @@ app.use(
       .json({ error: safeError(error) });
   },
 );
-const server = app.listen(settings.port, "127.0.0.1", () =>
+const server = app.listen(settings.port, settings.host, () =>
   console.log(
-    `VPO backend http://localhost:${settings.port} (${settings.test ? "TEST MODE" : "LIVE"})`,
+    `VPO backend http://${settings.host}:${settings.port} (${settings.test ? "TEST MODE" : "LIVE"})`,
   ),
 );
 for (const signal of ["SIGTERM", "SIGINT"] as const)

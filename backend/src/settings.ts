@@ -16,6 +16,7 @@ function number(name: string, fallback: number) {
 }
 export const settings = {
   port: number("PORT", 4000),
+  host: process.env.HOST ?? "127.0.0.1",
   test: process.env.TEST_MODE !== "false",
   key: process.env.GEMINI_API_KEY ?? "",
   origins: (process.env.FRONTEND_ORIGINS ?? "http://localhost:3000")
