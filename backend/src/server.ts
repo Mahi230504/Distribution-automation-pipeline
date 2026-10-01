@@ -52,7 +52,7 @@ app.use((req, res, next) => {
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-VPO-Filename, X-VPO-Release-Revision, X-VPO-Storyboard-Lineage");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-VPO-Filename, X-VPO-Release-Revision, X-VPO-Storyboard-Lineage, X-VPO-Active-Media-Version");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,OPTIONS");
   }
   if (req.method === "OPTIONS") {

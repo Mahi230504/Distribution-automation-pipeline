@@ -63,6 +63,9 @@ export const settings = {
   searchPrice: number("SEARCH_REQUEST_PRICE", 0.014),
   ffprobePath: process.env.FFPROBE_PATH ?? "ffprobe",
   mediaProbeTimeoutMs: number("MEDIA_PROBE_TIMEOUT_MS", 30000),
+  mediaProbeConcurrency: Math.max(1, Math.floor(number("MEDIA_PROBE_CONCURRENCY", 2))),
+  mediaProbeStdoutBytes: Math.max(1024, Math.floor(number("MEDIA_PROBE_STDOUT_LIMIT_BYTES", 2_000_000))),
+  mediaProbeStderrBytes: Math.max(1024, Math.floor(number("MEDIA_PROBE_STDERR_LIMIT_BYTES", 65536))),
   packInputAllowance: number("PACK_INPUT_TOKEN_ALLOWANCE", 16000),
   packOutputAllowance: number("PACK_OUTPUT_TOKEN_ALLOWANCE", 6000),
 };

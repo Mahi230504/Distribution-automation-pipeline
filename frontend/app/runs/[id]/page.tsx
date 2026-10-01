@@ -11,6 +11,7 @@ import {
   requestPackQuote,
   enterReleaseReview,
   reopenApproval,
+  returnToPackEditing,
   restorePackVersion,
   generateStoryboard,
   getCostEstimate,
@@ -358,6 +359,7 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
           busy={busy}
           onApprove={() => runAction("Approving exact release", () => approvePack(run))}
           onReopen={() => runAction("Reopening release", () => reopenApproval(run))}
+          onEdit={() => runAction("Returning to Pack editing", () => returnToPackEditing(id, run.release!.revision))}
           onUpdate={setRun}
         />
       )}

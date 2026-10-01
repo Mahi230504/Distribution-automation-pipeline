@@ -1,6 +1,7 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createHash, randomUUID } from "node:crypto";
 import { createReadStream } from "node:fs";
+import { Readable } from "node:stream";
 import { Upload } from "tus-js-client";
 import type { BrandKit, Run } from "../../frontend/lib/types.js";
 import { emptyBrand } from "./brief.js";
@@ -129,8 +130,10 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   async openAsset(ownerId: string, id: string) {
     const { data, error } = await this.client.from("assets").select("id,user_id,run_id,bucket_id,object_path,purpose,media_type,byte_size,sha256,original_filename,detected_metadata,validation,media_version").eq("id", id).eq("user_id", ownerId).maybeSingle();
     failure("Could not read asset record", error); if (!data) throw new StorageNotFoundError("Asset was not found.");
-    const downloaded = await this.client.storage.from(data.bucket_id).download(data.object_path); failure("Could not download asset", downloaded.error);
-    return { record: { id: data.id, ownerId: data.user_id, runId: data.run_id, purpose: data.purpose, mediaType: data.media_type, byteSize: Number(data.byte_size), sha256: data.sha256, originalFilename: data.original_filename, detectedMetadata: data.detected_metadata, validation: data.validation, mediaVersion: data.media_version }, bytes: Buffer.from(await downloaded.data!.arrayBuffer()) };
+    const objectUrl = `${settings.supabaseUrl.replace(/\/$/, "")}/storage/v1/object/authenticated/${encodeURIComponent(data.bucket_id)}/${String(data.object_path).split("/").map(encodeURIComponent).join("/")}`;
+    const downloaded = await fetch(objectUrl, { headers: { Authorization: `Bearer ${settings.supabaseSecretKey}`, apikey: settings.supabaseSecretKey } });
+    if (!downloaded.ok || !downloaded.body) throw new Error(`Could not stream asset: Storage returned ${downloaded.status}.`);
+    return { record: { id: data.id, ownerId: data.user_id, runId: data.run_id, purpose: data.purpose, mediaType: data.media_type, byteSize: Number(data.byte_size), sha256: data.sha256, originalFilename: data.original_filename, detectedMetadata: data.detected_metadata, validation: data.validation, mediaVersion: data.media_version }, stream: Readable.fromWeb(downloaded.body as import("node:stream/web").ReadableStream) };
   }
   async deleteAsset(ownerId: string, id: string) {
     const { data, error } = await this.client.from("assets").select("bucket_id,object_path").eq("id", id).eq("user_id", ownerId).maybeSingle(); failure("Could not read asset record", error); if (!data) throw new StorageNotFoundError("Asset was not found.");

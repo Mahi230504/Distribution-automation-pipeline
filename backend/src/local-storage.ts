@@ -1,4 +1,4 @@
-import { constants } from "node:fs";
+import { constants, createReadStream } from "node:fs";
 import { chmod, copyFile, mkdir, readFile, writeFile, rename, readdir, unlink } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
@@ -122,7 +122,7 @@ export class LocalStorageAdapter implements StorageAdapter {
     if (!/^[a-f0-9-]{36}$/.test(id)) throw new StorageNotFoundError("Asset was not found.");
     const record = await read<StoredAssetRecord>(`asset-${id}.json`); if (!record || record.ownerId !== ownerId) throw new StorageNotFoundError("Asset was not found.");
     const ext = record.mediaType === "video/mp4" ? "mp4" : "png"; const folder = record.mediaType === "video/mp4" ? "media" : "images";
-    return { record, bytes: await readFile(path.join(root, folder, `${id}.${ext}`)) };
+    return { record, stream: createReadStream(path.join(root, folder, `${id}.${ext}`)) };
   }
   async deleteAsset(ownerId: string, id: string) {
     const record = await read<StoredAssetRecord>(`asset-${id}.json`); if (!record || record.ownerId !== ownerId) throw new StorageNotFoundError("Asset was not found.");

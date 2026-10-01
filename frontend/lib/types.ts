@@ -219,9 +219,24 @@ export interface ReleasePackContent {
   thumbnailText: string;
   platforms: PlatformPackEntries;
 }
+export type ReleaseProvenance = "test" | "live" | "legacy_sample";
+export interface PackInputReferences {
+  inputFingerprint: string;
+  briefRevision: number;
+  scriptVersion: number;
+  directionId: string;
+  promptId: string;
+  approvedKeyAttemptId: string;
+  approvedKeyAssetId: string;
+  retainedFactIds: string[];
+  beatIds: string[];
+  storyboard: { frameId: string; order: number; instruction: string; beatIds: string[]; selectedAttemptId: string; assetId: string }[];
+}
 export interface PackVersion {
   id: string; version: number; origin: "generated" | "edited" | "restored" | "legacy_sample";
   createdAt: string; createdBy: string; changeSummary: string; storyboardLineage: string;
+  provenance: ReleaseProvenance; validationPolicyFingerprint: string;
+  inputReferences?: PackInputReferences;
   content: ReleasePackContent; validation: ValidationResult; callIds: string[];
 }
 export interface MediaProbeResult {
@@ -240,12 +255,19 @@ export interface ReleaseReadiness extends ValidationResult {
 export interface ReleaseApproval {
   id: string; version: number; ownerId: string; runId: string; approvalEpoch: number;
   storyboardLineage: string; packVersionId: string; mediaVersionId: string; mediaSha256: string;
-  destinations: ReleaseDestination[]; readinessFingerprint: string; approvedAt: string; approvedBy: string;
+  destinations: ReleaseDestination[]; readinessFingerprint: string; policyFingerprint: string;
+  packProvenance: ReleaseProvenance; approvedAt: string; approvedBy: string;
 }
 export interface ApprovalSupersession { approvalId: string; at: string; reason: string; releaseRevision: number; }
 export interface PackQuote {
   id: string; storyboardLineage: string; releaseRevision: number; inputHash: string; amountUsd: number;
   expiresAt: string; settingsFingerprint: string; usedByJobId?: string;
+}
+export interface PackIntent {
+  id: string; quoteId: string; jobId: string; packVersionId: string;
+  storyboardLineage: string; releaseRevision: number; settingsFingerprint: string;
+  validationPolicyFingerprint: string; provenance: Exclude<ReleaseProvenance, "legacy_sample">;
+  createdAt: string; status: "confirmed" | "running" | "draft_saved" | "completed" | "ambiguous";
 }
 export interface ReleaseState {
   schemaVersion: 1; revision: number; approvalEpoch: number;
@@ -253,7 +275,7 @@ export interface ReleaseState {
   mediaVersions: FinalMediaVersion[]; activeMediaVersionId?: string;
   selectedDestinations: ReleaseDestination[]; destinationRevision: number;
   readiness: ReleaseReadiness; approvals: ReleaseApproval[]; supersessions: ApprovalSupersession[];
-  activeApprovalId?: string; packQuotes: PackQuote[];
+  activeApprovalId?: string; packQuotes: PackQuote[]; packIntents: PackIntent[];
 }
 
 export interface Brief {
@@ -340,6 +362,7 @@ export interface Run {
     kind: "story" | "rewrite" | "script-revision" | "pack" | GenerationKind;
     packDraft?: ReleasePackContent;
     packCallIds?: string[];
+    packIntentId?: string;
     ambiguousProviderResult?: boolean;
     revisionDraft?: {
       requiresResearch: boolean;

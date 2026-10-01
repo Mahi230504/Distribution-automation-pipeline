@@ -1,6 +1,6 @@
 import { assessBrief } from "./brief-assessment.js";
 import { randomUUID } from "node:crypto";
-import type { Run, GenerationKind } from "../../frontend/lib/types.js";
+import type { Run, GenerationKind, PackIntent } from "../../frontend/lib/types.js";
 import { storage } from "./storage.js";
 import { safeError } from "./settings.js";
 import { requireBrief, assertVersion } from "./brief.js";
@@ -17,7 +17,8 @@ import {
 } from "./generation.js";
 import { settings } from "./settings.js";
 import { runPack } from "./pack.js";
-import { ensureRelease, invalidateRelease, storyboardLineage } from "./release.js";
+import { applySupersession, calculateReadiness, ensureRelease, invalidateRelease, prepareSupersession, RELEASE_POLICY_FINGERPRINT, storyboardLineage } from "./release.js";
+import { packSettingsFingerprint } from "./pack.js";
 export const isBusy = (r: Run) => ["queued", "running"].includes(r.jobStatus);
 export async function recover() {
   for (const run of await storage.listRecoverableRuns())
@@ -44,6 +45,8 @@ export async function recover() {
           if (r.job.kind === "pack" && r.aiCallLog.some(c => c.jobId === r.job?.id && ["pending", "interrupted", "success"].includes(c.outcome)) && !r.job.packDraft) {
             r.job.ambiguousProviderResult = true;
             r.job.message = "The Pack provider result is unknown. This confirmed intent will not be repeated; request a new Pack estimate.";
+            const intent = ensureRelease(r).packIntents.find((item) => item.id === r.job?.packIntentId);
+            if (intent) intent.status = "ambiguous";
           }
         }
       });
@@ -79,6 +82,12 @@ async function execute(ownerId: string, id: string) {
       r.job!.status = "failed";
       r.job!.error = safeError(e);
       r.job!.message = "Job failed";
+      if (r.job?.kind === "pack" && !r.job.packDraft && r.aiCallLog.some((call) => call.jobId === r.job?.id && ["pending", "interrupted", "success"].includes(call.outcome))) {
+        r.job.ambiguousProviderResult = true;
+        r.job.message = "The Pack provider result is unknown. This confirmed intent will not be repeated; confirm a new Pack intent.";
+        const intent = ensureRelease(r).packIntents.find((item) => item.id === r.job?.packIntentId);
+        if (intent) intent.status = "ambiguous";
+      }
       const f = r.feedbackHistory?.find((f) => f.id === r.job?.feedbackId);
       if (f && f.status !== "needs_research") {
         f.status = "failed";
@@ -133,15 +142,14 @@ export async function startJob(
   return run;
 }
 
+export function preparePackIntent(run:Run,quoteId:string):PackIntent{const release=ensureRelease(run),quote=release.packQuotes.find((item)=>item.id===quoteId);if(!quote)throw new Error("Pack estimate not found.");const jobId=randomUUID();return{id:randomUUID(),quoteId,jobId,packVersionId:randomUUID(),storyboardLineage:quote.storyboardLineage,releaseRevision:quote.releaseRevision,settingsFingerprint:quote.settingsFingerprint,validationPolicyFingerprint:RELEASE_POLICY_FINGERPRINT,provenance:run.mode==="live"?"live":"test",createdAt:new Date().toISOString(),status:"confirmed"};}
+export function applyPackIntent(run:Run,intent:PackIntent,input:{expectedStoryboardLineage:string;expectedReleaseRevision:number},supersession=prepareSupersession(run,"Pack generation started",intent.createdAt)){const release=ensureRelease(run),quote=release.packQuotes.find((item)=>item.id===intent.quoteId),existing=release.packIntents.find((item)=>item.quoteId===intent.quoteId);if(existing)return existing;if(isBusy(run))throw new Error("A Pack job is already active. Wait for it or Resume it.");const lineage=storyboardLineage(run);if(!lineage||lineage!==input.expectedStoryboardLineage||intent.storyboardLineage!==lineage)throw new Error("The approved Storyboard changed. Refresh and request a new estimate.");if(!quote||quote.usedByJobId||Date.parse(quote.expiresAt)<Date.now()||quote.releaseRevision!==input.expectedReleaseRevision||release.revision!==input.expectedReleaseRevision||quote.settingsFingerprint!==packSettingsFingerprint())throw new Error("This Pack estimate is stale or already consumed. Request a new estimate.");quote.usedByJobId=intent.jobId;applySupersession(run,supersession);release.revision++;release.packIntents.push(structuredClone(intent));run.job={id:intent.jobId,ownerId:run.userId,kind:"pack",packIntentId:intent.id,status:"queued",checkpoint:"start",startedAt:intent.createdAt,message:"Generating platform Pack",quoteId:quote.id};run.jobStatus="queued";run.currentStage="pack";calculateReadiness(run,intent.createdAt);return intent;}
+export function applyPackResume(run:Run,intentId:string){const intent=ensureRelease(run).packIntents.find((item)=>item.id===intentId);if(!intent||intent.status==="ambiguous"||run.job?.ambiguousProviderResult)throw new Error("This Pack result is unknown and will not be repeated. Confirm a new Pack intent.");if(!run.job||run.job.kind!=="pack"||run.job.id!==intent.jobId||run.job.packIntentId!==intent.id||run.jobStatus!=="interrupted")throw new Error("Only the same interrupted Pack intent can resume.");run.jobStatus="queued";run.job.status="queued";delete run.job.error;return intent;}
 export async function startPackJob(ownerId: string, id: string, input: { quoteId: string; expectedStoryboardLineage: string; expectedReleaseRevision: number }) {
-  let scheduleJob = false;
-  const run = await storage.updateRun(ownerId, id, r => { const release = ensureRelease(r), quote = release.packQuotes.find(q => q.id === input.quoteId);
-    if (quote?.usedByJobId) return; if (isBusy(r)) throw new Error("A job is already running.");
-    const lineage = storyboardLineage(r); if (!lineage || lineage !== input.expectedStoryboardLineage || quote?.storyboardLineage !== lineage) throw new Error("The approved Storyboard changed. Refresh and request a new estimate.");
-    if (!quote || Date.parse(quote.expiresAt) < Date.now() || quote.releaseRevision !== input.expectedReleaseRevision || release.revision !== input.expectedReleaseRevision) throw new Error("This Pack estimate is stale. Refresh and request a new estimate.");
-    const jobId = randomUUID(); quote.usedByJobId = jobId; invalidateRelease(r, "Pack generation started"); r.job = { id: jobId, ownerId, kind: "pack", status: "queued", checkpoint: "start", startedAt: new Date().toISOString(), message: "Generating platform Pack", quoteId: quote.id }; r.jobStatus = "queued"; r.currentStage = "pack"; scheduleJob = true;
-  });
-  if (scheduleJob) schedule(ownerId, id); return run;
+  const before=await storage.getRun(ownerId,id),existing=ensureRelease(before).packIntents.find((item)=>item.quoteId===input.quoteId);if(existing)return before;
+  const intent=preparePackIntent(before,input.quoteId),supersession=prepareSupersession(before,"Pack generation started",intent.createdAt);
+  const run = await storage.updateRun(ownerId, id, r => { const found=ensureRelease(r).packIntents.find((item)=>item.quoteId===input.quoteId);if(found)return;applyPackIntent(r,intent,input,supersession); });
+  if (run.job?.id===intent.jobId) schedule(ownerId, id); return run;
 }
 
 export function schedule(ownerId: string, id: string) {
@@ -286,8 +294,8 @@ export async function startGeneration(
 export async function resumeGeneration(ownerId: string, id: string, quoteId?: string) {
   const existing = await storage.getRun(ownerId, id);
   if (existing.job?.kind === "pack") {
-    if (existing.job.ambiguousProviderResult) throw new Error("This Pack result is unknown and will not be repeated. Request a new Pack estimate.");
-    const resumed = await storage.updateRun(ownerId, id, r => { if (!r.job || r.job.kind !== "pack" || r.jobStatus !== "interrupted") throw new Error("Only an interrupted Pack job can resume."); r.jobStatus = "queued"; r.job.status = "queued"; delete r.job.error; }); schedule(ownerId, id); return resumed;
+    const intent=ensureRelease(existing).packIntents.find((item)=>item.id===existing.job?.packIntentId);if(!intent||intent.status==="ambiguous"||existing.job.ambiguousProviderResult) throw new Error("This Pack result is unknown and will not be repeated. Confirm a new Pack intent.");
+    const resumed = await storage.updateRun(ownerId, id, r => { applyPackResume(r,intent.id); }); schedule(ownerId, id); return resumed;
   }
   if (
     quoteId &&

@@ -1,4 +1,5 @@
 import type { BrandKit, Run } from "../../frontend/lib/types.js";
+import type { Readable } from "node:stream";
 
 export interface AssetMetadata {
   purpose?: string;
@@ -13,7 +14,7 @@ export interface SaveFileAssetInput extends AssetMetadata {
   filePath: string; extension: string; byteSize: number; sha256: string; originalFilename?: string;
   detectedMetadata?: unknown; validation?: unknown; mediaVersion?: number;
 }
-export interface OpenAssetResult { record: StoredAssetRecord; bytes: Buffer; }
+export interface OpenAssetResult { record: StoredAssetRecord; stream: Readable; }
 
 export interface StorageAdapter {
   init(): Promise<void>;
