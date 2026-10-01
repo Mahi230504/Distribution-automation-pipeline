@@ -279,6 +279,7 @@ export interface Run {
   generation?: GenerationState;
   job?: {
     id: string;
+    ownerId?: string;
     kind: "story" | "rewrite" | "script-revision" | GenerationKind;
     revisionDraft?: {
       requiresResearch: boolean;

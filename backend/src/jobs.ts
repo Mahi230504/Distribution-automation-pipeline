@@ -18,9 +18,9 @@ import {
 import { settings } from "./settings.js";
 export const isBusy = (r: Run) => ["queued", "running"].includes(r.jobStatus);
 export async function recover() {
-  for (const run of await storage.listRuns())
+  for (const run of await storage.listRecoverableRuns())
     if (isBusy(run))
-      await storage.updateRun(run.id, (r) => {
+      await storage.updateRun(run.userId, run.id, (r) => {
         r.jobStatus = "interrupted";
         for (const call of r.aiCallLog)
           if (call.outcome === "pending") {
@@ -42,31 +42,31 @@ export async function recover() {
         }
       });
 }
-async function execute(id: string) {
+async function execute(ownerId: string, id: string) {
   try {
-    await storage.updateRun(id, (r) => {
+    await storage.updateRun(ownerId, id, (r) => {
       r.jobStatus = "running";
       r.job!.status = "running";
     });
-    await assessBrief(id);
-    const r = await storage.getRun(id);
+    await assessBrief(ownerId, id);
+    const r = await storage.getRun(ownerId, id);
     if (!["story", "rewrite", "script-revision"].includes(r.job!.kind)) {
-      await runGeneration(id);
+      await runGeneration(ownerId, id);
       return;
     }
     if (r.job!.checkpoint !== "scripted") {
-      if (r.job!.kind === "script-revision") await reviseScript(id);
-      else if (r.job!.kind === "story") await research(id);
-      else await rewrite(id);
+      if (r.job!.kind === "script-revision") await reviseScript(ownerId, id);
+      else if (r.job!.kind === "story") await research(ownerId, id);
+      else await rewrite(ownerId, id);
     }
-    await storage.updateRun(id, (r) => {
+    await storage.updateRun(ownerId, id, (r) => {
       r.jobStatus = "needs_review";
       r.job!.status = "completed";
       r.job!.message = "Story ready";
       r.job!.finishedAt = new Date().toISOString();
     });
   } catch (e) {
-    await storage.updateRun(id, (r) => {
+    await storage.updateRun(ownerId, id, (r) => {
       r.jobStatus = "failed";
       r.job!.status = "failed";
       r.job!.error = safeError(e);
@@ -81,19 +81,20 @@ async function execute(id: string) {
   }
 }
 export async function startJob(
+  ownerId: string,
   id: string,
   kind: "story" | "rewrite",
   options: { fresh?: boolean; factId?: string; removed?: boolean } = {},
   resume = false,
 ) {
-  const current = await storage.getRun(id);
+  const current = await storage.getRun(ownerId, id);
   if (
     resume &&
     current.job &&
     !["story", "rewrite", "script-revision"].includes(current.job.kind)
   )
-    return resumeGeneration(id);
-  const run = await storage.updateRun(id, (r) => {
+    return resumeGeneration(ownerId, id);
+  const run = await storage.updateRun(ownerId, id, (r) => {
     requireBrief(r);
     if (isBusy(r)) throw new Error("A job is already running for this run.");
     if (resume) {
@@ -105,6 +106,7 @@ export async function startJob(
         throw new Error("Story changes are locked after approving Story.");
       r.job = {
         id: randomUUID(),
+        ownerId,
         kind,
         status: "queued",
         checkpoint: kind === "story" ? "start" : "rewrite",
@@ -118,17 +120,18 @@ export async function startJob(
     r.currentStage = "story";
   });
   setImmediate(() => {
-    execute(id).catch((e) => console.error(safeError(e)));
+    execute(ownerId, id).catch((e) => console.error(safeError(e)));
   });
   return run;
 }
 
-export function schedule(id: string) {
+export function schedule(ownerId: string, id: string) {
   setImmediate(() => {
-    execute(id).catch((e) => console.error(safeError(e)));
+    execute(ownerId, id).catch((e) => console.error(safeError(e)));
   });
 }
 export async function startGeneration(
+  ownerId: string,
   id: string,
   kind: GenerationKind,
   input: {
@@ -143,7 +146,7 @@ export async function startGeneration(
   } = {},
 ) {
   let started = false;
-  const run = await storage.updateRun(id, (r) => {
+  const run = await storage.updateRun(ownerId, id, (r) => {
     requireBrief(r);
     const g = ensureGeneration(r);
     // Replays return the saved job/output, even after completion. No second schedule.
@@ -222,6 +225,7 @@ export async function startGeneration(
     g.limits = limits();
     r.job = {
       id: jobId,
+      ownerId,
       kind,
       status: "queued",
       checkpoint: "start",
@@ -256,17 +260,17 @@ export async function startGeneration(
     for (const message of planned) activity(r, "planned", message, "pending");
     started = true;
   });
-  if (started) schedule(id);
+  if (started) schedule(ownerId, id);
   return run;
 }
-export async function resumeGeneration(id: string, quoteId?: string) {
-  const existing = await storage.getRun(id);
+export async function resumeGeneration(ownerId: string, id: string, quoteId?: string) {
+  const existing = await storage.getRun(ownerId, id);
   if (
     quoteId &&
     existing.generation?.quotes.find((q) => q.id === quoteId)?.usedByJobId
   )
     return existing;
-  const run = await storage.updateRun(id, (r) => {
+  const run = await storage.updateRun(ownerId, id, (r) => {
     requireBrief(r);
     if (!r.job || !["interrupted", "failed"].includes(r.jobStatus))
       throw new Error(
@@ -294,6 +298,6 @@ export async function resumeGeneration(id: string, quoteId?: string) {
       "resumed",
     );
   });
-  schedule(id);
+  schedule(ownerId, id);
   return run;
 }

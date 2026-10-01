@@ -21,6 +21,8 @@ node_modules/
 # Local run/job storage (pre-Supabase local JSON files)
 /backend/data/
 /backend/storage/
+/supabase/.temp/
+/supabase/.branches/
 
 # Logs
 npm-debug.log*

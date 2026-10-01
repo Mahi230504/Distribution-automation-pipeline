@@ -11,17 +11,18 @@ This document describes how VPO Studio is built. It's written for a non-technica
 | **Frontend** | The web pages the user sees and clicks through (Brief, Story, Direction, Look, Storyboard, Pack, Approve, History) | Vercel (a hosting service specialised for web front-ends) |
 | **Backend** | Does the actual work: calls Gemini (Google's AI), tracks cost, runs long jobs, talks to the database | Render (a hosting service for backend servers) |
 | **Gemini API** | Google's AI service — writes facts/scripts/prompts, scores quality, generates images | Google's servers (called over the internet by the backend only) |
-| **Supabase** (from step 5) | Postgres database (structured data storage), file storage (for images), and Auth (user sign-in) | Supabase's hosted service |
+| **Supabase** (Step 5A) | Postgres database (structured data storage), private file storage, and Auth (user sign-in) | Supabase's hosted service |
 | **Telegram** (from step 5) | Lets a user send their finished pack to a Telegram chat | Telegram's servers (called by the backend) |
 
-The frontend never talks to Gemini, Supabase, or Telegram directly — it only ever talks to our own backend, which then talks to those services. This keeps every secret key on the server and gives us one place to add logging, rate limiting, and cost tracking.
+The frontend talks directly to Supabase only for sign-in and session refresh, using public browser configuration. All product data and media still go through the Express backend. The frontend never receives the Supabase secret key or Gemini key and never reads application tables directly.
 
 ```mermaid
 graph LR
     User["User's browser"] -->|HTTPS| FE["Frontend (Next.js)<br/>on Vercel"]
+    FE -->|sign-in/session only| Auth["Supabase Auth"]
     FE -->|REST API calls, incl. polling| BE["Backend (Express)<br/>on Render"]
     BE -->|AI calls| Gemini["Gemini API<br/>(Google)"]
-    BE -->|read/write runs, brand kits| DB["Supabase<br/>Postgres + Storage + Auth<br/>(from step 5;<br/>local JSON files before that)"]
+    BE -->|owner-scoped data/media| DB["Supabase<br/>Postgres + private Storage<br/>(or explicit local adapter)"]
     BE -->|send pack| TG["Telegram"]
 ```
 
@@ -133,9 +134,10 @@ Separately, if the **frontend** has no backend address configured at all (e.g. v
 | `FRAME_MAX_TOTAL` | Max frames per run (default 6, including the key frame) |
 | `FRAME_MAX_MANUAL_REGENERATIONS` | Cap on user-requested regenerations per frame |
 | `RESEARCH_CACHE_HOURS` | How long research is reused for the same user+topic (default 24) |
-| `STORAGE_MODE` | `local_json` (pre-step-5) or `supabase` (from step 5) |
-| `STORAGE_LOCAL_PATH` | Folder for local JSON run files (pre-step-5 only) |
-| `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` | Supabase connection (from step 5) |
+| `AUTH_MODE`, `STORAGE_MODE` | Only `local` + `local_json` or `supabase` + `supabase`; mismatches stop startup |
+| `STORAGE_LOCAL_PATH` | Folder for the explicit offline local adapter |
+| `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY` | Supabase URL and browser-safe key used by the backend to verify bearer claims |
+| `SUPABASE_SECRET_KEY` | Server-only Supabase key for owner-scoped database and Storage calls; bypasses RLS |
 | `TELEGRAM_BOT_TOKEN` | Telegram bot credential for sending packs (from step 5) |
 | `USER_DAILY_RUN_LIMIT` | Per-user daily cap on new runs (from step 7) |
 | `USER_DAILY_COST_LIMIT` | Per-user daily cap on estimated spend (from step 7) |
@@ -146,7 +148,8 @@ Separately, if the **frontend** has no backend address configured at all (e.g. v
 | Variable | Purpose |
 |---|---|
 | `NEXT_PUBLIC_API_URL` | Address of the backend API. If unset, the frontend shows sample data with a "SAMPLE DATA" badge |
-| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Public Supabase client config for sign-in (from step 5) |
+| `NEXT_PUBLIC_AUTH_MODE` | `local` for the labelled offline identity or `supabase` for real sign-in |
+| `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Public Supabase client config for sign-in only |
 
 ---
 
@@ -404,3 +407,33 @@ Supersedes the earlier requirement for separate promotional product details and 
 Results and score summaries remain visible; successful detailed reviews, full prompts, model calls and activity history are expandable. Script feedback follows the script rather than preceding it. Errors and failed visible requirements remain visible, with existing recovery actions. Image elements load lazily.
 
 Active-run polling waits for the previous response before scheduling another, using 1.5 seconds when visible and 10 seconds when hidden. Health checks reuse model-availability metadata for five minutes, or ten seconds after an unhealthy result, and coalesce concurrent requests. `checkedAt` reports its verification time. Restart clears the disposable cache; no job data is stored there. Model retirement detection can therefore lag by up to five minutes. No changes to model IDs, generation quality gates, price settings, paid calls or storage format.
+
+## Step 5A ownership foundation — 2026-10-01
+
+Step 5A replaces implicit production ownership without building Pack, final-media approval or publishing. Pack and Approve remain visibly SAMPLE.
+
+### Identity and request boundary
+
+In Supabase mode, the browser restores its Supabase session before rendering or fetching protected pages. It sends the current access token on every backend data and media request. One Express middleware verifies the bearer token with Supabase `auth.getClaims()` and derives the owner from the verified `sub` claim. Browser-supplied `userId` values are ignored. Missing, invalid and expired authentication receives HTTP 401; a valid user requesting another user's run, job, call log or image receives HTTP 404 so IDs cannot be enumerated. Sign-out clears the local Supabase session and unmounts protected data.
+
+`getClaims()` validates the token signature and expiry locally against Supabase's signing keys. That avoids a network round trip on every polling request. The trade-off is a revocation window: a token that was revoked server-side can remain usable until its short access-token expiry. Short access-token lifetimes and key rotation bound that window; high-risk actions can add a live user check later. Refresh tokens never go to Express or persistent application storage.
+
+### Storage contract and trusted jobs
+
+Application logic uses one owner-explicit `StorageAdapter`. The local implementation keeps the old JSON format and paths, including the old `brand.json` for the local fixture identity. The Supabase implementation stores one complete run snapshot in Postgres JSONB, with separate indexed owner, stage, job status, timestamps and revision columns. This minimizes migration risk for the working Steps 3–4. Brand kits are one snapshot per owner. Binary media lives in the private `vpo-private` bucket; an `assets` row maps an opaque asset ID to its generated object path.
+
+Every job saves its verified `ownerId`. After the HTTP request ends, job execution and startup recovery pass that saved owner into every run and asset operation. The Supabase adapter uses a server secret, which bypasses Row Level Security (RLS), so every read/update includes an explicit `user_id` predicate. Database constraints also require the snapshot owner to equal the row owner. Asset upload first proves ownership of the parent run; reads first resolve an owner-scoped asset row. If a newly uploaded object cannot be registered, only that newly created object is removed.
+
+Run updates use a revision compare-and-swap. A stale writer reloads and retries the pure storage mutation; it cannot silently overwrite a newer revision. Provider calls remain outside that retry loop, so a database conflict after a Gemini/image result cannot repeat the provider side effect. If a process loses a live provider result before it was persisted, the existing unknown-result/unknown-cost recovery semantics still apply.
+
+### Database and private-media policy
+
+The migration creates `runs`, `brand_kits` and `assets`, enables RLS, indexes ownership predicates and defines separate SELECT/INSERT/UPDATE/DELETE owner policies using `auth.uid()`. Production grants deliberately give no raw application-table privileges to `anon` or `authenticated`: the Express API remains the product boundary. A policy test temporarily grants rights inside a rolled-back transaction to prove the RLS allow/deny behaviour independently of that production denial.
+
+The raw-data audit found no access tokens, refresh tokens, API keys, raw provider responses or hidden system prompts in the stored snapshots. Snapshots do contain user-visible prompts, retrieved source evidence, AI-call errors/cost metadata and full revision history, so direct table SELECT remains withheld. Asset rows contain private object paths and hashes, so direct asset-table SELECT is also withheld. The Storage bucket is private. Its SELECT policy additionally requires the authenticated owner metadata and first path segment to match `auth.uid()`; server-created objects have no user owner metadata and are served only through the owner-scoped Express image route. Storage objects are created/deleted through the Storage API, never by editing `storage.objects` directly.
+
+### Modes and limits
+
+AI `TEST_MODE` remains independent of identity/storage mode. Supported runtime pairs are only `AUTH_MODE=local` with `STORAGE_MODE=local_json`, or `AUTH_MODE=supabase` with `STORAGE_MODE=supabase`. Supabase mode with missing configuration stops immediately and never falls back to local or browser samples. The deterministic `test-user:` identity injection exists only when `NODE_ENV=test`; it is not a runtime mode.
+
+Existing files under `backend/data` are neither rewritten nor uploaded. No importer is run. Local mode can continue to open them; a later, explicit import tool or operation is required to place selected instructor runs in Supabase. Multi-worker job claiming and a distributed Gemini concurrency limiter remain out of scope; optimistic revisions prevent lost writes but do not authorize multiple workers yet.

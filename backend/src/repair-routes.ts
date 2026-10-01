@@ -13,6 +13,7 @@ import {
 import { schedule, startGeneration } from "./jobs.js";
 import { parseScript } from "./script.js";
 import { storeImage } from "./images.js";
+import { owner } from "./auth.js";
 export const repairRouter = Router();
 const version = z.object({
   scriptVersion: z.number().int(),
@@ -37,7 +38,7 @@ repairRouter.patch("/api/runs/:id/brief", async (req, res) => {
     })
     .parse(req.body);
   res.json(
-    await storage.updateRun(String(req.params.id), (r) => {
+    await storage.updateRun(owner(req), String(req.params.id), (r) => {
       assertIdle(r);
       if (b.expectedRevision !== (r.effective?.revision ?? 0))
         throw new Error("Brief changed. Refresh first.");
@@ -68,7 +69,7 @@ repairRouter.patch("/api/runs/:id/brief", async (req, res) => {
 repairRouter.post("/api/runs/:id/story/reopen", async (req, res) => {
   z.object({ confirmInvalidation: z.literal(true) }).parse(req.body);
   res.json(
-    await storage.updateRun(String(req.params.id), (r) => {
+    await storage.updateRun(owner(req), String(req.params.id), (r) => {
       assertIdle(r);
       invalidateStory(r);
       r.job = undefined;
@@ -84,7 +85,8 @@ repairRouter.post("/api/runs/:id/script/revise", async (req, res) => {
       })
       .parse(req.body),
     id = String(req.params.id);
-  const r = await storage.updateRun(id, (r) => {
+  const ownerId = owner(req);
+  const r = await storage.updateRun(ownerId, id, (r) => {
     assertIdle(r);
     requireBrief(r);
     assertVersion(r, b.scriptVersion, b.briefRevision);
@@ -119,7 +121,7 @@ repairRouter.post("/api/runs/:id/script/revise", async (req, res) => {
     };
     r.jobStatus = "queued";
   });
-  schedule(id);
+  schedule(ownerId, id);
   res.status(202).json(r);
 });
 repairRouter.post("/api/runs/:id/script/restore", async (req, res) => {
@@ -127,7 +129,7 @@ repairRouter.post("/api/runs/:id/script/restore", async (req, res) => {
     .extend({ restoreVersion: z.number().int() })
     .parse(req.body);
   res.json(
-    await storage.updateRun(String(req.params.id), (r) => {
+    await storage.updateRun(owner(req), String(req.params.id), (r) => {
       assertIdle(r);
       assertVersion(r, b.scriptVersion, b.briefRevision);
       if (r.storyApproval || r.currentStage !== "story")
@@ -151,7 +153,7 @@ repairRouter.patch("/api/runs/:id/script", async (req, res) => {
     .extend({ fullText: z.string().min(1).max(30000) })
     .parse(req.body);
   res.json(
-    await storage.updateRun(String(req.params.id), (r) => {
+    await storage.updateRun(owner(req), String(req.params.id), (r) => {
       assertIdle(r);
       assertVersion(r, b.scriptVersion, b.briefRevision);
       if (r.storyApproval || r.currentStage !== "story")
@@ -181,12 +183,13 @@ repairRouter.post("/api/runs/:id/prompt/revise", async (req, res) => {
       })
       .parse(req.body),
     id = String(req.params.id);
-  const r = await storage.getRun(id);
+  const ownerId = owner(req);
+  const r = await storage.getRun(ownerId, id);
   assertIdle(r);
   if (r.generation?.activePromptId !== b.promptId)
     throw new Error("Prompt changed. Refresh first.");
   res.status(202).json(
-    await startGeneration(id, "prompt", {
+    await startGeneration(ownerId, id, "prompt", {
       directionId: r.selectedDirectionId!,
       note: b.note,
       force: true,
@@ -202,12 +205,12 @@ repairRouter.post("/api/runs/:id/product-reference", async (req, res) => {
     dataUrl,
   );
   if (!m) throw new Error("Use PNG, JPEG or WebP.");
-  const id = String(req.params.id),
-    old = await storage.getRun(id);
+  const id = String(req.params.id), ownerId = owner(req),
+    old = await storage.getRun(ownerId, id);
   assertIdle(old);
-  const image = await storeImage(Buffer.from(m[2], "base64"));
+  const image = await storeImage(ownerId, id, Buffer.from(m[2], "base64"));
   res.json(
-    await storage.updateRun(id, (r) => {
+    await storage.updateRun(ownerId, id, (r) => {
       assertIdle(r);
       if (r.updatedAt !== old.updatedAt)
         throw new Error("Run changed during upload. Retry.");

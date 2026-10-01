@@ -16,6 +16,7 @@ const beat = z.object({
   claimType: z.enum(["creative", "supported"]),
 });
 export async function validateNarration(
+  ownerId: string,
   id: string,
   r: Run,
   beats: ScriptBeat[],
@@ -33,6 +34,7 @@ export async function validateNarration(
     /100% organic|guaranteed|cures|carbon.neutral|waterproof/i.test(b.vo),
   );
   const raw = await callAI(
+    ownerId,
     id,
     "review",
     `Check exact script against BOTH original content brief and evidence. Return {valid,reason}. Reject wrong subject/objective, unrelated brand, unsupported material/sustainability/price/performance/availability claims. Explicitly fictional events, metaphors, creative invitations and visual-only beats need no citations, provided they are not presented as real-world claims. Factual narration must follow the cited fact IDs. User product descriptions are not proof of performance. Brief:${JSON.stringify(semanticBrief(r))}. Facts:${JSON.stringify(r.facts.filter((f) => !f.removed))}. Beats:${JSON.stringify(beats)}`,
@@ -50,8 +52,8 @@ export async function validateNarration(
   const result = schema.parse(parseReply(raw));
   if (!result.valid) throw new Error(result.reason);
 }
-export async function reviseScript(id: string) {
-  const r = await storage.getRun(id),
+export async function reviseScript(ownerId: string, id: string) {
+  const r = await storage.getRun(ownerId, id),
     job = r.job!,
     fb = r.feedbackHistory!.find((f) => f.id === job.feedbackId)!;
   if (fb.status === "completed") return;
@@ -85,6 +87,7 @@ export async function reviseScript(id: string) {
   let parsed = job.revisionDraft ? schema.parse(job.revisionDraft) : undefined;
   if (!parsed) {
     const raw = await callAI(
+      ownerId,
       id,
       "script-revision",
       `Revise ONLY selected beats using feedback. Return {requiresResearch,reason,summary,beats}. New unsupported real-world facts or changed subject require requiresResearch=true and beats:[], not fabricated support. Keep selected IDs/timestamps; return exactly selected IDs. Unselected beats stay unchanged. For full revision build a coherent, non-repetitive arc. Fit VO <=2.2 words/second. Creative invitations use factIds:[],claimType:creative. Factual narration uses retained factIds,claimType:supported. Serve the actual objective without imposing a specific industry or visual genre. Brief:${JSON.stringify(semanticBrief(r))}. Current:${JSON.stringify(r.script)}. Selected:${JSON.stringify(originals)}. Facts:${JSON.stringify(r.facts.filter((f) => !f.removed))}. Feedback history:${JSON.stringify(r.feedbackHistory)}. Note:${fb.note}`,
@@ -118,7 +121,7 @@ export async function reviseScript(id: string) {
     parsed = schema.parse(parseReply(raw));
   }
   if (parsed.requiresResearch) {
-    await storage.updateRun(id, (r) => {
+    await storage.updateRun(ownerId, id, (r) => {
       const f = r.feedbackHistory!.find((f) => f.id === fb.id)!;
       f.status = "needs_research";
       f.error = parsed.reason;
@@ -140,7 +143,7 @@ export async function reviseScript(id: string) {
     throw new Error(
       "Revision changed protected IDs or timings. Last good script retained.",
     );
-  await storage.updateRun(id, (current) => {
+  await storage.updateRun(ownerId, id, (current) => {
     check(current);
     current.job!.revisionDraft = parsed;
     current.job!.checkpoint = "revision-written";
@@ -150,8 +153,8 @@ export async function reviseScript(id: string) {
   const beats = r.script!.beats.map(
     (b) => parsed.beats.find((p) => p.id === b.id) ?? b,
   );
-  await validateNarration(id, r, beats);
-  await storage.updateRun(id, (r) => {
+  await validateNarration(ownerId, id, r, beats);
+  await storage.updateRun(ownerId, id, (r) => {
     check(r);
     const old = r.script!;
     (r.scriptVersions ??= []).push(old);

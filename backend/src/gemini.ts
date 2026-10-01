@@ -41,6 +41,7 @@ export interface CallOptions {
   origin?: import("../../frontend/lib/types.js").ChangeOrigin;
 }
 export async function callAI(
+  ownerId: string,
   runId: string,
   purpose: string,
   prompt: string,
@@ -63,13 +64,13 @@ export async function callAI(
         .update(Buffer.from(p.inlineData!.data!, "base64"))
         .digest("hex"),
     );
-  const jobId = (await storage.getRun(runId)).job?.id;
+  const jobId = (await storage.getRun(ownerId, runId)).job?.id;
   for (let attempt = 0; attempt <= settings.retries; attempt++) {
     await acquire();
     const start = Date.now();
     const callId = randomUUID();
     try {
-      await storage.updateRun(runId, (r) =>
+      await storage.updateRun(ownerId, runId, (r) =>
         r.aiCallLog.push({
           id: callId,
           stage,
@@ -167,7 +168,7 @@ export async function callAI(
           1e6 +
         searches * settings.searchPrice +
         imageCount * settings.imagePrice;
-    await storage.updateRun(runId, (r) => {
+    await storage.updateRun(ownerId, runId, (r) => {
       const index = r.aiCallLog.findIndex((c) => c.id === callId);
       r.aiCallLog[index] = {
         id: callId,

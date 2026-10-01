@@ -2,6 +2,7 @@
 import { useState } from "react";
 import type { Run, EffectiveBrief } from "@/lib/types";
 import { repairAction } from "@/lib/api";
+import ProtectedAssetLink from "./ProtectedAssetLink";
 export default function BriefIdentity({
   run,
   busy,
@@ -259,27 +260,21 @@ export default function BriefIdentity({
                 {h.script?.fullText}
               </pre>
               {h.generation?.keys.map((k) => (
-                <a
+                <ProtectedAssetLink
                   key={k.id}
-                  href={`${process.env.NEXT_PUBLIC_API_URL}${k.imageUrl}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="block underline"
+                  path={k.imageUrl}
                 >
                   Previous key frame {k.attempt}
-                </a>
+                </ProtectedAssetLink>
               ))}
               {h.generation?.board.flatMap((f) =>
                 f.attempts.map((a) => (
-                  <a
+                  <ProtectedAssetLink
                     key={a.id}
-                    href={`${process.env.NEXT_PUBLIC_API_URL}${a.imageUrl}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="block underline"
+                    path={a.imageUrl}
                   >
                     Previous frame {f.order + 1}, attempt {a.attempt}
-                  </a>
+                  </ProtectedAssetLink>
                 )),
               )}
             </div>

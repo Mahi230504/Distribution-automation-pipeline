@@ -39,7 +39,7 @@ interface FixtureImageContext {
   scene: string;
   variation: number;
 }
-export async function storeImage(bytes: Buffer) {
+export async function storeImage(ownerId: string, runId: string, bytes: Buffer) {
   if (!bytes.length || bytes.length > settings.uploadBytes)
     throw new Error(
       `Image exceeds the ${Math.round(settings.uploadBytes / 1048576)} MB size limit.`,
@@ -59,14 +59,14 @@ export async function storeImage(bytes: Buffer) {
       "Upload a valid, non-animated PNG, JPEG or WebP image (maximum 20 million pixels).",
     );
   }
-  const assetId = await storage.saveImage(png);
+  const assetId = await storage.saveImage(ownerId, runId, png, { purpose: "image", mediaType: "image/png" });
   return { assetId, imageUrl: `/api/images/${assetId}` };
 }
-export async function imagePart(assetId: string): Promise<Part> {
+export async function imagePart(ownerId: string, assetId: string): Promise<Part> {
   return {
     inlineData: {
       mimeType: "image/png",
-      data: (await storage.readImage(assetId)).toString("base64"),
+      data: (await storage.readImage(ownerId, assetId)).toString("base64"),
     },
   };
 }

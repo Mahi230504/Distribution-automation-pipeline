@@ -7,10 +7,12 @@
     "dev": "tsx src/server.ts",
     "build": "tsc",
     "start": "node dist/backend/src/server.js",
-    "test": "TEST_MODE=true tsx --test test/*.test.ts"
+    "test": "TEST_MODE=true tsx --test test/*.test.ts",
+    "supabase:storage:setup": "tsx scripts/setup-storage.ts"
   },
   "dependencies": {
     "@google/genai": "latest",
+    "@supabase/supabase-js": "^2.117.2",
     "cheerio": "^1.1.0",
     "dotenv": "^17.2.0",
     "express": "^5.1.0",

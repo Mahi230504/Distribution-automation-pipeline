@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { getHealth, isSampleMode } from "@/lib/api";
 import Badge from "./Badge";
+import { useAuth } from "./AuthProvider";
 
 const LINKS = [
   { href: "/", label: "History" },
@@ -13,6 +14,7 @@ const LINKS = [
 ];
 
 export default function Header() {
+  const auth = useAuth();
   const pathname = usePathname();
   const [mode, setMode] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -57,6 +59,7 @@ export default function Header() {
           {isSampleMode() && <Badge tone="warning">SAMPLE DATA</Badge>}
           {mode === "test" && <Badge tone="warning">TEST MODE</Badge>}
           {mode === "live" && <Badge>LIVE</Badge>}
+          {auth.mode === "local" && <Badge tone="neutral">LOCAL FIXTURE IDENTITY</Badge>}
           {error && (
             <span role="alert" className="text-xs text-warning max-w-xs">
               {error}
@@ -83,6 +86,16 @@ export default function Header() {
               </Link>
             );
           })}
+          {auth.mode === "supabase" && auth.session && (
+            <div className="flex items-center gap-1">
+              <span className="hidden max-w-44 truncate px-2 text-xs text-muted sm:inline" title={auth.session.user.email}>
+                {auth.session.user.email}
+              </span>
+              <button onClick={() => void auth.signOut()} className="min-h-11 rounded-lg px-3 py-1.5 text-muted hover:text-foreground" aria-label={`Sign out ${auth.session.user.email ?? "current user"}`}>
+                Sign out
+              </button>
+            </div>
+          )}
         </nav>
       </div>
     </header>

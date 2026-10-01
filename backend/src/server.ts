@@ -11,6 +11,7 @@ import { generationRouter } from "./generation-routes.js";
 import { interpretationSchema, emptyBrand, mode } from "./brief.js";
 import { repairRouter } from "./repair-routes.js";
 import { sampleAction } from "./samples.js";
+import { authenticate, owner } from "./auth.js";
 const platform = z.enum(["instagram_reels", "youtube_shorts", "linkedin"]);
 const brief = z.object({
   interpretation: interpretationSchema.optional(),
@@ -50,7 +51,7 @@ app.use((req, res, next) => {
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,OPTIONS");
   }
   if (req.method === "OPTIONS") {
@@ -60,19 +61,24 @@ app.use((req, res, next) => {
   next();
 });
 app.use(express.json({ limit: Math.ceil(settings.uploadBytes * 1.4) + 1024 }));
-app.use(repairRouter);
-app.use(generationRouter);
 app.get("/api/health", async (_req, res) => {
   const h = await health();
-  res.status(h.healthy ? 200 : 503).json(h);
+  res.status(h.healthy ? 200 : 503).json({
+    ...h,
+    authMode: settings.authMode,
+    storageMode: settings.storageMode,
+  });
 });
-app.get("/api/brand-kit", async (_req, res) =>
-  res.json(await storage.getBrandKit()),
+app.use("/api", authenticate);
+app.use(repairRouter);
+app.use(generationRouter);
+app.get("/api/brand-kit", async (req, res) =>
+  res.json(await storage.getBrandKit(owner(req))),
 );
 app.put("/api/brand-kit", async (req, res) =>
-  res.json(await storage.saveBrandKit(brand.parse(req.body))),
+  res.json(await storage.saveBrandKit(owner(req), brand.parse(req.body))),
 );
-app.get("/api/runs", async (_req, res) => res.json(await storage.listRuns()));
+app.get("/api/runs", async (req, res) => res.json(await storage.listRuns(owner(req))));
 app.post("/api/runs", async (req, res) => {
   const input = brief.parse(req.body),
     now = new Date().toISOString();
@@ -92,7 +98,7 @@ app.post("/api/runs", async (req, res) => {
       brandSelection: input.brandSelection,
     },
     id: randomUUID(),
-    userId: "local-user",
+    userId: owner(req),
     brief: input,
     currentStage: input.pastedScript ? "direction" : "brief",
     jobStatus: input.pastedScript ? "needs_review" : "idle",
@@ -114,45 +120,45 @@ app.post("/api/runs", async (req, res) => {
     aiCallLog: [],
     brandKit:
       input.brandSelection === "saved"
-        ? await storage.getBrandKit()
+        ? await storage.getBrandKit(owner(req))
         : input.brandSelection === "custom"
           ? brand.parse(input.brandKit)
           : structuredClone(emptyBrand),
     sampleStages: true,
   };
-  res.status(201).json(await storage.createRun(r));
+  res.status(201).json(await storage.createRun(owner(req), r));
 });
 app.get("/api/runs/:id", async (req, res) =>
-  res.json(await storage.getRun(req.params.id)),
+  res.json(await storage.getRun(owner(req), req.params.id)),
 );
 app.get("/api/runs/:id/jobs/:jobId", async (req, res) => {
-  const r = await storage.getRun(req.params.id);
+  const r = await storage.getRun(owner(req), req.params.id);
   if (r.job?.id !== req.params.jobId) throw new Error("Job not found");
   res.json(r.job);
 });
 app.get("/api/runs/:id/ai-calls", async (req, res) =>
-  res.json((await storage.getRun(req.params.id)).aiCallLog),
+  res.json((await storage.getRun(owner(req), req.params.id)).aiCallLog),
 );
 app.post("/api/runs/:id/story", async (req, res) => {
   const body = z
     .object({ fresh: z.boolean().optional() })
     .parse(req.body ?? {});
-  res.status(202).json(await startJob(req.params.id, "story", body));
+  res.status(202).json(await startJob(owner(req), req.params.id, "story", body));
 });
 app.post("/api/runs/:id/resume", async (req, res) =>
-  res.status(202).json(await startJob(req.params.id, "story", {}, true)),
+  res.status(202).json(await startJob(owner(req), req.params.id, "story", {}, true)),
 );
 app.patch("/api/runs/:id/facts", async (req, res) => {
   const body = z
     .object({ factId: z.string(), removed: z.boolean() })
     .parse(req.body);
-  const r = await storage.getRun(req.params.id);
+  const r = await storage.getRun(owner(req), req.params.id);
   if (!r.facts.some((f) => f.id === body.factId))
     throw new Error("Fact not found");
-  res.status(202).json(await startJob(r.id, "rewrite", body));
+  res.status(202).json(await startJob(owner(req), r.id, "rewrite", body));
 });
 app.get("/api/runs/:id/cost-estimate", async (req, res) => {
-  await storage.getRun(req.params.id);
+  await storage.getRun(owner(req), req.params.id);
   res.json({
     label: "Sample rendering",
     amountUsd: 0,
@@ -162,7 +168,7 @@ app.get("/api/runs/:id/cost-estimate", async (req, res) => {
 function sample(route: string, action: string) {
   app.post(route, async (req, res) =>
     res.json(
-      await storage.updateRun(String(req.params.id), (r) => {
+      await storage.updateRun(owner(req), String(req.params.id), (r) => {
         if (isBusy(r)) throw new Error("Wait for the running job.");
         if (
           action === "directions" &&
@@ -197,7 +203,7 @@ app.patch("/api/runs/:id/pack", async (req, res) => {
     .partial()
     .parse(req.body);
   res.json(
-    await storage.updateRun(req.params.id, (r) => {
+    await storage.updateRun(owner(req), req.params.id, (r) => {
       if (!r.pack) throw new Error("No pack available");
       r.pack = { ...r.pack, ...patch, approved: false };
     }),
@@ -211,8 +217,9 @@ app.use(
     res: express.Response,
     _next: express.NextFunction,
   ) => {
+    const status = error instanceof z.ZodError ? 400 : typeof (error as { status?: unknown })?.status === "number" ? Number((error as { status: number }).status) : 409;
     res
-      .status(error instanceof z.ZodError ? 400 : 409)
+      .status(status)
       .json({ error: safeError(error) });
   },
 );

@@ -38,11 +38,12 @@ const run = {
   },
 } as unknown as Run;
 await storage.init();
-await storage.createRun(run);
+await storage.createRun("local-user", run);
 test("Retries 429 twice, records each attempt; never retries other errors; respects concurrency", async () => {
   let tries = 0;
   await assert.rejects(() =>
     callAI(
+      "local-user",
       "test",
       "review",
       "",
@@ -55,7 +56,7 @@ test("Retries 429 twice, records each attempt; never retries other errors; respe
     ),
   );
   assert.equal(tries, 3);
-  let logs = (await storage.getRun("test")).aiCallLog;
+  let logs = (await storage.getRun("local-user", "test")).aiCallLog;
   assert.deepEqual(
     logs.map((c) => c.outcome),
     ["retried", "retried", "failed"],
@@ -63,6 +64,7 @@ test("Retries 429 twice, records each attempt; never retries other errors; respe
   tries = 0;
   await assert.rejects(() =>
     callAI(
+      "local-user",
       "test",
       "review",
       "",
@@ -80,6 +82,7 @@ test("Retries 429 twice, records each attempt; never retries other errors; respe
   await Promise.all(
     Array.from({ length: 6 }, () =>
       callAI(
+        "local-user",
         "test",
         "script",
         "",
@@ -105,7 +108,7 @@ test("Defensive JSON parser accepts fenced JSON and reports malformed reply pref
   assert.throws(() => parseReply(r), /Reply starts: This is not JSON/);
 });
 test("Missing citation evidence drops all facts and fails clearly", async () => {
-  await storage.updateRun("test", (r) => {
+  await storage.updateRun("local-user", "test", (r) => {
     r.job!.checkpoint = "researched";
     r.research = {
       status: "uncited",
@@ -125,8 +128,8 @@ test("Missing citation evidence drops all facts and fails clearly", async () => 
     ];
     r.sources = [];
   });
-  await assert.rejects(() => research("test"), /uncited/);
-  const result = await storage.getRun("test");
+  await assert.rejects(() => research("local-user", "test"), /uncited/);
+  const result = await storage.getRun("local-user", "test");
   assert.equal(result.facts.length, 0);
   assert.equal(result.research?.dropped.length, 1);
 });
@@ -149,6 +152,7 @@ test("Live-price arithmetic includes thinking tokens and grounding without a net
       thoughtsTokenCount: 500000,
     };
     await callAI(
+      "local-user",
       "test",
       "research",
       "",
@@ -156,7 +160,7 @@ test("Live-price arithmetic includes thinking tokens and grounding without a net
       true,
       async () => reply,
     );
-    const log = (await storage.getRun("test")).aiCallLog.at(-1)!;
+    const log = (await storage.getRun("local-user", "test")).aiCallLog.at(-1)!;
     assert.equal(log.outputTokens, 1000000);
     assert.ok(Math.abs(log.estimatedCostUsd - 4.514) < 0.000001);
     assert.equal(log.searchRequests, 1);
@@ -182,6 +186,7 @@ test("Image estimate separates image output from text/thinking; fresh recovery q
       thoughtsTokenCount: 50,
     };
     await callAI(
+      "local-user",
       "test",
       "image",
       "",
@@ -190,7 +195,7 @@ test("Image estimate separates image output from text/thinking; fresh recovery q
       async () => raw,
       { stage: "look", image: true },
     );
-    const log = (await storage.getRun("test")).aiCallLog.at(-1)!;
+    const log = (await storage.getRun("local-user", "test")).aiCallLog.at(-1)!;
     assert.equal(log.imageCount, 1);
     assert.ok(
       Math.abs(
@@ -200,17 +205,17 @@ test("Image estimate separates image output from text/thinking; fresh recovery q
             (150 * settings.imageOutput) / 1e6),
       ) < 1e-9,
     );
-    await storage.updateRun("test", (r) => {
+    await storage.updateRun("local-user", "test", (r) => {
       const g = ensureGeneration(r);
       r.jobStatus = "interrupted";
       r.job!.kind = "key";
       g.revision = 4;
     });
-    const quote = await quoteImages("test", "key", undefined, "", true);
+    const quote = await quoteImages("local-user", "test", "key", undefined, "", true);
     assert.ok(quote.amountUsd > 0);
-    await storage.updateRun("test", (r) => consumeResumeQuote(r, quote.id));
+    await storage.updateRun("local-user", "test", (r) => consumeResumeQuote(r, quote.id));
     await assert.rejects(
-      () => storage.updateRun("test", (r) => consumeResumeQuote(r, quote.id)),
+      () => storage.updateRun("local-user", "test", (r) => consumeResumeQuote(r, quote.id)),
       /fresh cost confirmation/,
     );
   } finally {

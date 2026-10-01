@@ -1,4 +1,13 @@
 import "dotenv/config";
+export type AuthMode = "local" | "supabase";
+export type StorageMode = "local_json" | "supabase";
+
+function choice<T extends string>(name: string, fallback: T, allowed: T[]): T {
+  const value = (process.env[name] ?? fallback) as T;
+  if (!allowed.includes(value))
+    throw new Error(`${name} must be one of: ${allowed.join(", ")}`);
+  return value;
+}
 function number(name: string, fallback: number) {
   const n = Number(process.env[name] ?? fallback);
   if (!Number.isFinite(n) || n < 0) throw new Error(`Invalid setting ${name}`);
@@ -27,6 +36,14 @@ export const settings = {
   speakingRate: Math.max(0.1, number("SPEAKING_RATE", 2.5)),
   cacheHours: number("RESEARCH_CACHE_HOURS", 24),
   dataPath: process.env.STORAGE_LOCAL_PATH ?? "./data",
+  authMode: choice<AuthMode>("AUTH_MODE", "local", ["local", "supabase"]),
+  storageMode: choice<StorageMode>("STORAGE_MODE", "local_json", [
+    "local_json",
+    "supabase",
+  ]),
+  supabaseUrl: process.env.SUPABASE_URL ?? "",
+  supabasePublishableKey: process.env.SUPABASE_PUBLISHABLE_KEY ?? "",
+  supabaseSecretKey: process.env.SUPABASE_SECRET_KEY ?? "",
   testDelay: number("TEST_DELAY_MS", 350),
   mainInput: number("MAIN_INPUT_PRICE", 0.75),
   mainOutput: number("MAIN_OUTPUT_PRICE", 3.75),
@@ -45,12 +62,32 @@ export const settings = {
   fixtureScenario: process.env.TEST_SCENARIO ?? "pass",
   searchPrice: number("SEARCH_REQUEST_PRICE", 0.014),
 };
+
+const validModePair =
+  (settings.authMode === "local" && settings.storageMode === "local_json") ||
+  (settings.authMode === "supabase" && settings.storageMode === "supabase");
+if (!validModePair)
+  throw new Error(
+    "AUTH_MODE and STORAGE_MODE must be local/local_json or supabase/supabase.",
+  );
+if (
+  settings.authMode === "supabase" &&
+  (!settings.supabaseUrl ||
+    !settings.supabasePublishableKey ||
+    !settings.supabaseSecretKey)
+)
+  throw new Error(
+    "Supabase mode requires SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY.",
+  );
 export function safeError(error: unknown) {
   let message = error instanceof Error ? error.message : String(error);
-  if (settings.key) message = message.split(settings.key).join("[REDACTED]");
+  for (const secret of [settings.key, settings.supabaseSecretKey])
+    if (secret) message = message.split(secret).join("[REDACTED]");
   return message
     .replace(/(?:\/Users\/|\/home\/|\/tmp\/)[^\s"']+/g, "[private path]")
     .replace(/AIza[\w-]+/g, "[REDACTED]")
+    .replace(/sb_secret_[\w.-]+/g, "[REDACTED]")
+    .replace(/eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/g, "[REDACTED]")
     .replace(/([?&]key=)[^&\s]+/g, "$1[REDACTED]");
 }
 

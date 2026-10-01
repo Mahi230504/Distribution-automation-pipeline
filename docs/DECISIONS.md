@@ -149,6 +149,27 @@ The owner authorized image generation without further permission questions. Exis
 
 The cheap reviewer gave high scores to two sleeve images that did not precisely satisfy the requested visible detail. Keep its real scores, preserve the images, and retain human Look/Storyboard judgment and focused feedback. Do not represent a high score as proof of exact visual fidelity. No model or threshold was silently changed to force acceptance.
 
+## 2026-10-01 — Step 5A: durable identity and owner-scoped storage
+
+- Keep AI mode separate from identity/storage mode. Runtime accepts only `local` + `local_json` or `supabase` + `supabase`. A broken Supabase configuration is a startup error, never permission to reveal local or sample data. The `test-user:` identity hook is guarded by `NODE_ENV=test` and is not a production option.
+- Use email/password for the classroom-friendly first sign-in flow. The supported Supabase browser client persists and refreshes the session. The frontend waits for session restoration before mounting protected pages and adds the current access token to all real backend data/media requests.
+- Verify normal bearer requests with `auth.getClaims()`. This verifies signature and expiry using the project's signing keys and avoids a Supabase Auth network call on every poll. It does not instantly consult server-side revocation state: a revoked, otherwise-valid access token can work until expiry. Keep access-token lifetime short enough for the project risk; use an online user check only for a future especially sensitive action, not every poll.
+- Store full run state as JSONB behind the existing storage interface, plus indexed owner/stage/status/timestamps and an optimistic revision. This is safer for the already-validated Steps 3–4 than normalizing every nested revision, call, prompt and review now. Postgres revision compare-and-swap prevents silent lost updates. Provider calls occur before, and outside, retryable persistence mutations so a storage conflict cannot repeat a paid side effect.
+- Use the server secret for backend/background work. Because that credential bypasses RLS, every adapter operation includes an explicit trusted owner predicate and parent-run ownership check. Saved jobs carry the verified owner after the request ends. RLS remains enabled as defence in depth and is tested independently when a real Supabase engine is available.
+- Keep Postgres and Storage private behind Express. The snapshot audit found no auth tokens, secrets, raw provider responses or hidden system prompts, but snapshots do contain retrieved page evidence, user-visible prompts, revision history and AI-call/error metadata. Asset rows contain private object paths and hashes. Therefore `anon` and `authenticated` receive no production table grants; the browser does not read these tables directly. Storage is private and server-created objects are delivered only after an owner-scoped asset lookup.
+- Preserve local data in place. The local adapter understands legacy run/image references without rewriting them. No automatic upload or importer is included. Pack, final-media approval, Telegram and platform publishing remain outside 5A.
+
+Official documentation verified 2026-10-01:
+
+- [Supabase Auth](https://supabase.com/docs/guides/auth)
+- [JSON Web Tokens and `getClaims()`](https://supabase.com/docs/guides/auth/jwts)
+- [Postgres Row Level Security](https://supabase.com/docs/guides/database/postgres/row-level-security)
+- [Storage access control](https://supabase.com/docs/guides/storage/security/access-control)
+- [Storage object ownership](https://supabase.com/docs/guides/storage/security/ownership)
+- [Supabase local development and migrations](https://supabase.com/docs/guides/local-development)
+- [Supabase CLI database testing](https://supabase.com/docs/guides/local-development/testing/overview)
+- Installed Next.js 16.3.6 documentation under `frontend/node_modules/next/dist/docs`: Client Components and the Next 16 `proxy` convention were checked. This app needs a client-side auth gate rather than server cookie proxying because its protected product reads are client API calls to Express; adding an unused proxy would widen scope.
+
 
 ## 2026-09-26 — Remove category assumptions; optimize evidence and verify visual intent
 

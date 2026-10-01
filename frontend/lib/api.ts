@@ -37,6 +37,12 @@ import {
 import { randomId } from "./format";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL;
+const AUTH_MODE = process.env.NEXT_PUBLIC_AUTH_MODE ?? "local";
+let accessTokenProvider: (() => Promise<string | null>) | null = null;
+
+export function setAccessTokenProvider(provider: (() => Promise<string | null>) | null) {
+  accessTokenProvider = provider;
+}
 
 export function isSampleMode(): boolean {
   return !API_URL;
@@ -57,14 +63,18 @@ export class ApiError extends Error {
   }
 }
 
-async function realFetch<T>(path: string, init?: RequestInit): Promise<T> {
+async function realFetch<T>(path: string, init?: RequestInit, requiresAuth = true): Promise<T> {
   let res: Response;
   try {
+    const token = requiresAuth && AUTH_MODE === "supabase" ? await accessTokenProvider?.() : null;
+    if (requiresAuth && AUTH_MODE === "supabase" && !token)
+      throw new ApiError("Your session has ended. Sign in again to continue.");
     res = await fetch(`${API_URL}${path}`, {
       ...init,
-      headers: { "Content-Type": "application/json", ...(init?.headers ?? {}) },
+      headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}), ...(init?.headers ?? {}) },
     });
-  } catch {
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
     throw new ApiError(
       `Could not reach the backend at ${API_URL}. Check that it's running and reachable.`,
     );
@@ -514,8 +524,10 @@ export async function getHealth(): Promise<{
   mode: string;
   testMode: boolean;
   keyPresent: boolean;
+  authMode: string;
+  storageMode: string;
 }> {
-  return realFetch("/api/health");
+  return realFetch("/api/health", undefined, false);
 }
 export async function resumeRun(id: string): Promise<Run> {
   return realFetch(`/api/runs/${id}/resume`, { method: "POST" });
@@ -523,6 +535,14 @@ export async function resumeRun(id: string): Promise<Run> {
 
 export function assetUrl(url: string) {
   return url.startsWith("/api/") ? `${API_URL}${url}` : url;
+}
+export async function fetchAsset(path: string): Promise<Blob> {
+  if (!API_URL) throw new ApiError("No backend is configured.");
+  const token = AUTH_MODE === "supabase" ? await accessTokenProvider?.() : null;
+  if (AUTH_MODE === "supabase" && !token) throw new ApiError("Sign in to view this image.");
+  const response = await fetch(`${API_URL}${path}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  if (!response.ok) throw new ApiError(response.status === 401 ? "Your session has ended. Sign in again." : "This image is unavailable.");
+  return response.blob();
 }
 export async function requestImageQuote(
   id: string,

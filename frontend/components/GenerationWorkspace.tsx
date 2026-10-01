@@ -12,10 +12,10 @@ import {
   rejectKey,
   approveStoryboard,
   uploadKeyFrame,
-  assetUrl,
   resumeRun,
 } from "@/lib/api";
 import LoadingState from "./LoadingState";
+import ProtectedImage from "./ProtectedImage";
 
 const button =
   "rounded-lg bg-accent px-4 py-3 text-sm font-medium text-accent-foreground disabled:opacity-40 disabled:cursor-not-allowed";
@@ -94,12 +94,8 @@ function Calls({ run, ids }: { run: Run; ids: string[] }) {
 function ImageView({ image, run }: { image: ImageAttempt; run: Run }) {
   return (
     <div className="space-y-3">
-      {/* Plain img supports locally served and uploaded images without a remote image allowlist. */}
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        loading="lazy"
-        decoding="async"
-        src={assetUrl(image.imageUrl)}
+      <ProtectedImage
+        src={image.imageUrl}
         alt={`Storyboard image, attempt ${image.attempt}`}
         className="max-h-[480px] w-full rounded-lg object-contain bg-background"
       />

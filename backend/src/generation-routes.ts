@@ -12,12 +12,13 @@ import {
   invalidateBoard,
 } from "./generation.js";
 import { storeImage } from "./images.js";
+import { owner } from "./auth.js";
 export const generationRouter = Router();
 const note = z.string().trim().max(2000).default("");
 const confirmation = z.object({ quoteId: z.string().uuid() });
 const runId = (p: Record<string, unknown>) => String(p.id);
 generationRouter.get("/api/images/:assetId", async (req, res) => {
-  const data = await storage.readImage(String(req.params.assetId));
+  const data = await storage.readImage(owner(req), String(req.params.assetId));
   res
     .set({
       "Content-Type": "image/png",
@@ -31,6 +32,7 @@ generationRouter.post("/api/runs/:id/directions", async (req, res) =>
     .status(202)
     .json(
       await startGeneration(
+        owner(req),
         runId(req.params),
         "directions",
         z
@@ -43,7 +45,7 @@ generationRouter.post(
   "/api/runs/:id/directions/:directionId/select",
   async (req, res) =>
     res.status(202).json(
-      await startGeneration(runId(req.params), "prompt", {
+      await startGeneration(owner(req), runId(req.params), "prompt", {
         directionId: String(req.params.directionId),
         note: note.parse(req.body?.note),
       }),
@@ -60,6 +62,7 @@ generationRouter.post("/api/runs/:id/image-quotes", async (req, res) => {
     .parse(req.body);
   res.json(
     await quoteImages(
+      owner(req),
       runId(req.params),
       body.action,
       body.frameId,
@@ -76,13 +79,14 @@ for (const [suffix, kind] of [
 ] as const) {
   generationRouter.post(`/api/runs/:id/${suffix}`, async (req, res) => {
     const { quoteId } = confirmation.parse(req.body ?? {});
-    const run = await storage.getRun(runId(req.params));
+    const ownerId = owner(req);
+    const run = await storage.getRun(ownerId, runId(req.params));
     if (run.generation?.quotes.find((q) => q.id === quoteId)?.resumeJobId) {
-      res.status(202).json(await resumeGeneration(run.id, quoteId));
+      res.status(202).json(await resumeGeneration(ownerId, run.id, quoteId));
       return;
     }
     res.status(202).json(
-      await startGeneration(runId(req.params), kind, {
+      await startGeneration(ownerId, runId(req.params), kind, {
         quoteId,
         frameId: (req.params as Record<string, string>).frameId,
       }),
@@ -98,17 +102,17 @@ generationRouter.post("/api/runs/:id/key-frame/upload", async (req, res) => {
       dataUrl,
     );
   if (!match) throw new Error("Upload a PNG, JPEG or WebP image.");
-  const id = runId(req.params),
-    initial = await storage.getRun(id);
+  const id = runId(req.params), ownerId = owner(req),
+    initial = await storage.getRun(ownerId, id);
   if (
     isBusy(initial) ||
     initial.jobStatus === "interrupted" ||
     !initial.generation?.activePromptId
   )
     throw new Error("Complete the prompt and any active job before uploading.");
-  const stored = await storeImage(Buffer.from(match[1], "base64"));
+  const stored = await storeImage(ownerId, id, Buffer.from(match[1], "base64"));
   res.json(
-    await storage.updateRun(id, (r) => {
+    await storage.updateRun(ownerId, id, (r) => {
       if (
         isBusy(r) ||
         r.jobStatus === "interrupted" ||
@@ -145,7 +149,7 @@ generationRouter.post("/api/runs/:id/key-frame/upload", async (req, res) => {
 generationRouter.post("/api/runs/:id/key-frame/approve", async (req, res) => {
   const { keyId } = z.object({ keyId: z.string().uuid() }).parse(req.body);
   res.json(
-    await storage.updateRun(runId(req.params), (r) => {
+    await storage.updateRun(owner(req), runId(req.params), (r) => {
       if (isBusy(r) || r.jobStatus === "interrupted")
         throw new Error("Wait for the current job.");
       requireBrief(r);
@@ -171,7 +175,7 @@ generationRouter.post("/api/runs/:id/key-frame/approve", async (req, res) => {
 });
 generationRouter.post("/api/runs/:id/key-frame/reject", async (req, res) => {
   res.json(
-    await storage.updateRun(runId(req.params), (r) => {
+    await storage.updateRun(owner(req), runId(req.params), (r) => {
       if (isBusy(r) || r.jobStatus === "interrupted")
         throw new Error("Wait for the current job.");
       const g = ensureGeneration(r),
@@ -200,7 +204,7 @@ generationRouter.post(
       })
       .parse(req.body);
     res.json(
-      await storage.updateRun(runId(req.params), (r) => {
+      await storage.updateRun(owner(req), runId(req.params), (r) => {
         if (isBusy(r) || r.jobStatus === "interrupted")
           throw new Error("Finish or Resume the current job first.");
         requireBrief(r);
@@ -239,7 +243,7 @@ generationRouter.post(
 );
 generationRouter.post("/api/runs/:id/storyboard/approve", async (req, res) =>
   res.json(
-    await storage.updateRun(runId(req.params), (r) => {
+    await storage.updateRun(owner(req), runId(req.params), (r) => {
       const g = ensureGeneration(r);
       if (
         isBusy(r) ||

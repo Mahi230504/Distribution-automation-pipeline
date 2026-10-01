@@ -12,13 +12,15 @@ export const observationSchema = z.object({
 });
 // Deliberately no brief, target prompt, reference or desired score: describe pixels first.
 export async function observeImage(
+  ownerId: string,
   id: string,
   attempt: ImageAttempt,
   stage: "look" | "storyboard",
 ) {
   if (attempt.observation) return attempt.observation;
-  const before = (await storage.getRun(id)).aiCallLog.map((c) => c.id);
+  const before = (await storage.getRun(ownerId, id)).aiCallLog.map((c) => c.id);
   const raw = await callAI(
+    ownerId,
     id,
     "review",
     `Describe only the supplied image's visible content, independent of any desired outcome. Return description and uncertainties. Identify the actual objects, their material/shape, contents or obstruction of openings where visible, human actions and object relationships. Distinguish what is visible from inference. Inspect small functional details, not just visual polish. Explicitly describe spillage, occlusion, ambiguous contact, impossible geometry or apparent contradictions. Do not assume a container is empty, a tool is functioning or an action is completed when pixels do not establish it. No praise, scores, instructions or imagined narrative.`,
@@ -33,12 +35,12 @@ export async function observeImage(
     {
       stage,
       task: stage === "look" ? "key-observation" : "frame-observation",
-      parts: [await imagePart(attempt.assetId)],
+      parts: [await imagePart(ownerId, attempt.assetId)],
       responseJsonSchema: z.toJSONSchema(observationSchema),
     },
   );
   const value = { ...observationSchema.parse(parseReply(raw)), mode: mode() };
-  await storage.updateRun(id, (r) => {
+  await storage.updateRun(ownerId, id, (r) => {
     const image =
       stage === "look"
         ? r.generation!.keys.find((a) => a.id === attempt.id)
@@ -58,19 +60,21 @@ export async function observeImage(
 }
 
 export async function auditVisualIntent(
+  ownerId: string,
   id: string,
   attempt: ImageAttempt,
   observation: NonNullable<ImageAttempt["observation"]>,
   stage: "look" | "storyboard",
 ) {
   if (attempt.intentAudit) return attempt.intentAudit;
-  const run = await storage.getRun(id),
+  const run = await storage.getRun(ownerId, id),
     before = run.aiCallLog.map((c) => c.id);
   const schema = z.object({
     passed: z.boolean(),
     reason: z.string().trim().min(12).max(2000),
   });
   const raw = await callAI(
+    ownerId,
     id,
     "visual-intent",
     `Act as a strict logical consistency checker, not an art critic. Compare the independent description of actual pixels against the requested still moment and original intent. No numerical scores are provided. Return passed=false when an essential requested state, functional detail, object relationship or action is contradicted or not established by the description. A correct-looking object does not compensate for the wrong state. An observation can be uncertain about an irrelevant detail without failing; judge only requirements of this specific still, not all successive video actions. Never assume the target instruction has been fulfilled merely because it appears in the prompt. Explain the concrete mismatch, or what establishes compliance. Explicit latest feedback controls staging; it cannot change the subject or fabricate claims. Brief:${JSON.stringify(semanticBrief(run))}. Requested still:${attempt.stillPrompt}. Independent observation:${JSON.stringify(observation)}.`,
@@ -96,7 +100,7 @@ export async function auditVisualIntent(
     },
   );
   const value = { ...schema.parse(parseReply(raw)), mode: mode() };
-  await storage.updateRun(id, (r) => {
+  await storage.updateRun(ownerId, id, (r) => {
     const image =
       stage === "look"
         ? r.generation!.keys.find((a) => a.id === attempt.id)
