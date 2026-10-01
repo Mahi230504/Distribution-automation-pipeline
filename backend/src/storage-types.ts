@@ -4,6 +4,16 @@ export interface AssetMetadata {
   purpose?: string;
   mediaType?: string;
 }
+export interface StoredAssetRecord {
+  id: string; ownerId: string; runId: string; purpose: string; mediaType: string;
+  byteSize: number; sha256: string; originalFilename?: string; detectedMetadata?: unknown;
+  validation?: unknown; mediaVersion?: number;
+}
+export interface SaveFileAssetInput extends AssetMetadata {
+  filePath: string; extension: string; byteSize: number; sha256: string; originalFilename?: string;
+  detectedMetadata?: unknown; validation?: unknown; mediaVersion?: number;
+}
+export interface OpenAssetResult { record: StoredAssetRecord; bytes: Buffer; }
 
 export interface StorageAdapter {
   init(): Promise<void>;
@@ -18,6 +28,9 @@ export interface StorageAdapter {
   findResearch(ownerId: string, cacheKey: string): Promise<Run | undefined>;
   saveImage(ownerId: string, runId: string, bytes: Buffer, metadata?: AssetMetadata): Promise<string>;
   readImage(ownerId: string, id: string): Promise<Buffer>;
+  saveAssetFromFile(ownerId: string, runId: string, input: SaveFileAssetInput): Promise<StoredAssetRecord>;
+  openAsset(ownerId: string, id: string): Promise<OpenAssetResult>;
+  deleteAsset(ownerId: string, id: string): Promise<void>;
 }
 
 export class StorageNotFoundError extends Error { status = 404; }

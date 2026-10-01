@@ -16,6 +16,8 @@ import {
   limits,
 } from "./generation.js";
 import { settings } from "./settings.js";
+import { runPack } from "./pack.js";
+import { ensureRelease, invalidateRelease, storyboardLineage } from "./release.js";
 export const isBusy = (r: Run) => ["queued", "running"].includes(r.jobStatus);
 export async function recover() {
   for (const run of await storage.listRecoverableRuns())
@@ -39,6 +41,10 @@ export async function recover() {
           r.job.status = "interrupted";
           r.job.message =
             "Backend stopped during this job. Resume to continue from the saved checkpoint.";
+          if (r.job.kind === "pack" && r.aiCallLog.some(c => c.jobId === r.job?.id && ["pending", "interrupted", "success"].includes(c.outcome)) && !r.job.packDraft) {
+            r.job.ambiguousProviderResult = true;
+            r.job.message = "The Pack provider result is unknown. This confirmed intent will not be repeated; request a new Pack estimate.";
+          }
         }
       });
 }
@@ -48,8 +54,10 @@ async function execute(ownerId: string, id: string) {
       r.jobStatus = "running";
       r.job!.status = "running";
     });
+    let r = await storage.getRun(ownerId, id);
+    if (r.job!.kind === "pack") { await runPack(ownerId, id); return; }
     await assessBrief(ownerId, id);
-    const r = await storage.getRun(ownerId, id);
+    r = await storage.getRun(ownerId, id);
     if (!["story", "rewrite", "script-revision"].includes(r.job!.kind)) {
       await runGeneration(ownerId, id);
       return;
@@ -123,6 +131,17 @@ export async function startJob(
     execute(ownerId, id).catch((e) => console.error(safeError(e)));
   });
   return run;
+}
+
+export async function startPackJob(ownerId: string, id: string, input: { quoteId: string; expectedStoryboardLineage: string; expectedReleaseRevision: number }) {
+  let scheduleJob = false;
+  const run = await storage.updateRun(ownerId, id, r => { const release = ensureRelease(r), quote = release.packQuotes.find(q => q.id === input.quoteId);
+    if (quote?.usedByJobId) return; if (isBusy(r)) throw new Error("A job is already running.");
+    const lineage = storyboardLineage(r); if (!lineage || lineage !== input.expectedStoryboardLineage || quote?.storyboardLineage !== lineage) throw new Error("The approved Storyboard changed. Refresh and request a new estimate.");
+    if (!quote || Date.parse(quote.expiresAt) < Date.now() || quote.releaseRevision !== input.expectedReleaseRevision || release.revision !== input.expectedReleaseRevision) throw new Error("This Pack estimate is stale. Refresh and request a new estimate.");
+    const jobId = randomUUID(); quote.usedByJobId = jobId; invalidateRelease(r, "Pack generation started"); r.job = { id: jobId, ownerId, kind: "pack", status: "queued", checkpoint: "start", startedAt: new Date().toISOString(), message: "Generating platform Pack", quoteId: quote.id }; r.jobStatus = "queued"; r.currentStage = "pack"; scheduleJob = true;
+  });
+  if (scheduleJob) schedule(ownerId, id); return run;
 }
 
 export function schedule(ownerId: string, id: string) {
@@ -218,6 +237,7 @@ export async function startGeneration(
         f.complete = false;
         delete f.restoredFromAttemptId;
         delete g.boardApprovedAt;
+        invalidateRelease(r, "Storyboard frame regeneration started");
       }
       r.currentStage =
         kind === "board" || kind === "frame-regenerate" ? "storyboard" : "look";
@@ -265,6 +285,10 @@ export async function startGeneration(
 }
 export async function resumeGeneration(ownerId: string, id: string, quoteId?: string) {
   const existing = await storage.getRun(ownerId, id);
+  if (existing.job?.kind === "pack") {
+    if (existing.job.ambiguousProviderResult) throw new Error("This Pack result is unknown and will not be repeated. Request a new Pack estimate.");
+    const resumed = await storage.updateRun(ownerId, id, r => { if (!r.job || r.job.kind !== "pack" || r.jobStatus !== "interrupted") throw new Error("Only an interrupted Pack job can resume."); r.jobStatus = "queued"; r.job.status = "queued"; delete r.job.error; }); schedule(ownerId, id); return resumed;
+  }
   if (
     quoteId &&
     existing.generation?.quotes.find((q) => q.id === quoteId)?.usedByJobId

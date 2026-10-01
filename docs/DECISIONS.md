@@ -190,3 +190,12 @@ Live fine-grained image feedback exhausted its cap. Added a version-checked rest
 The user found the explicit interpretation form and always-visible diagnostic panels exhausting. Removed repeated summary entry, confirmation checkbox and mandatory product-details field. A short topic is sufficient for a generic concept without invented claims. Optional fields and technical review details remain available through expandable sections. Essential conflicts still require clarification. The existing promotional default is disclosed; other objectives remain available in settings.
 
 Keep independent visual checks after they caught real errors; do not remove them merely to claim faster AI generation. Instead eliminate overlapping polling and repeated provider model-metadata queries. Health cache: five-minute healthy TTL, ten-second unhealthy TTL, shared in-flight request, checkedAt timestamp. This trades at most five minutes of model-availability freshness for substantially less repeated provider traffic. No live AI output was regenerated for this UI pass.
+
+## 2026-10-01 — Step 5B: immutable release candidates
+
+- Pack output, final media, destinations and approvals are append-only versioned release state behind the owner-scoped run adapter. Legacy `run.pack` remains read-compatible and is not silently rewritten or approval-eligible.
+- Storyboard lineage hashes the approved brief/script/direction/prompt/key/frame selections. Pack and media bind it; upstream changes make them stale without deleting history.
+- Pack generation is one confirmed provider result with no AI score/rewrite loop. Storage conflicts retry persistence only. An ambiguous interrupted result is never replayed under the same confirmed intent.
+- Finished video is a private generalized asset. Server inspection uses `ffprobe`; the classroom profile is MP4/H.264, optional AAC, vertical 1080×1920 or 720×1280, 15–60 seconds and at most 100 MiB.
+- Approval explicitly and idempotently binds exact versions, media SHA-256 and destinations. Supersession is a separate audit event. Export is a metadata/copy ZIP plus a separate authenticated MP4.
+- YouTube metadata limits use current official documentation. Numeric Instagram and LinkedIn editorial limits are labelled classroom rules where current official pages did not expose a verifiable number. See `STEP5B-DESIGN.md`.

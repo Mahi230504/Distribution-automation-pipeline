@@ -7,10 +7,10 @@ const client = createClient(url, key, { auth: { persistSession: false, autoRefre
 const { data, error } = await client.storage.getBucket("vpo-private");
 if (error && !/not found/i.test(error.message)) throw error;
 if (!data) {
-  const created = await client.storage.createBucket("vpo-private", { public: false, fileSizeLimit: 6 * 1024 * 1024, allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "video/mp4"] });
+  const created = await client.storage.createBucket("vpo-private", { public: false, fileSizeLimit: 100 * 1024 * 1024, allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "video/mp4"] });
   if (created.error) throw created.error;
 } else {
-  const updated = await client.storage.updateBucket("vpo-private", { public: false, fileSizeLimit: 6 * 1024 * 1024, allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "video/mp4"] });
+  const updated = await client.storage.updateBucket("vpo-private", { public: false, fileSizeLimit: 100 * 1024 * 1024, allowedMimeTypes: ["image/png", "image/jpeg", "image/webp", "video/mp4"] });
   if (updated.error) throw updated.error;
 }
 console.log("Private vpo-private bucket is ready.");

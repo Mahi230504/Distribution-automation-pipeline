@@ -1,81 +1,13 @@
 "use client";
-
 import { useState } from "react";
-import { Run } from "@/lib/types";
-import { formatCurrency } from "@/lib/format";
-import { buildPackZip, downloadBlob } from "@/lib/export";
-import ErrorBanner from "@/components/ErrorBanner";
-
-export default function ApprovePanel({
-  run,
-  busy,
-  onApprove,
-}: {
-  run: Run;
-  busy: boolean;
-  onApprove: () => void;
-}) {
-  const [downloading, setDownloading] = useState(false);
-  const [downloadError, setDownloadError] = useState<string | null>(null);
-  const approved = run.pack?.approved ?? false;
-
-  async function handleDownload() {
-    setDownloading(true);
-    setDownloadError(null);
-    try {
-      const blob = await buildPackZip(run);
-      downloadBlob(blob, `${run.brief.topic.replace(/\s+/g, "-").toLowerCase()}-pack.zip`);
-    } catch (err) {
-      setDownloadError(err instanceof Error ? err.message : "Could not build the download.");
-    } finally {
-      setDownloading(false);
-    }
-  }
-
-  return (
-    <div className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-5 sm:p-6">
-      <div>
-        <h2 className="text-lg font-semibold">Approve</h2>
-        <p className="mt-1 text-sm text-muted">
-          Final check before this pack leaves the app. Total cost for this run so far:{" "}
-          <strong className="text-foreground">{formatCurrency(run.runningCostUsd)}</strong>.
-        </p>
-      </div>
-
-      {!approved && (
-        <button
-          onClick={onApprove}
-          disabled={busy}
-          className="self-start rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong disabled:opacity-60"
-        >
-          Approve pack
-        </button>
-      )}
-
-      {approved && (
-        <>
-          <div className="w-fit rounded-lg border border-success/30 bg-success/10 px-3 py-1.5 text-sm text-success">
-            Approved
-          </div>
-          {downloadError && <ErrorBanner message={downloadError} onRetry={handleDownload} />}
-          <div className="flex flex-wrap gap-3">
-            <button
-              onClick={handleDownload}
-              disabled={downloading}
-              className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong disabled:opacity-60"
-            >
-              {downloading ? "Building zip…" : "Download pack"}
-            </button>
-            <button
-              disabled
-              title="Coming in step 5"
-              className="cursor-not-allowed rounded-lg border border-border px-4 py-2 text-sm text-muted opacity-60"
-            >
-              Send to Telegram — Coming in step 5
-            </button>
-          </div>
-        </>
-      )}
-    </div>
-  );
+import type { ReleaseDestination, Run } from "@/lib/types";
+import { fetchDownload, saveDestinations } from "@/lib/api";
+import { downloadBlob } from "@/lib/export";
+const labels:Record<ReleaseDestination,string>={youtube_shorts:"YouTube Shorts",instagram_reels:"Instagram Reels",linkedin:"LinkedIn"};
+export default function ApprovePanel({run,busy,onApprove,onReopen,onUpdate,saveDestinationsRequest=saveDestinations}:{run:Run;busy:boolean;onApprove:()=>Promise<void>;onReopen:()=>Promise<void>;onUpdate:(run:Run)=>void;saveDestinationsRequest?:(runId:string,destinations:ReleaseDestination[],revision:number)=>Promise<Run>}){const r=run.release!,pack=r.packVersions.find(v=>v.id===r.activePackVersionId),media=r.mediaVersions.find(v=>v.id===r.activeMediaVersionId),approval=r.approvals.find(a=>a.id===r.activeApprovalId);const[selected,setSelected]=useState<ReleaseDestination[]>(r.selectedDestinations),[error,setError]=useState("");
+  async function save(){setError("");try{onUpdate(await saveDestinationsRequest(run.id,selected,r.revision))}catch(e){setError((e as Error).message)}} async function download(path:string,name:string){try{downloadBlob(await fetchDownload(path),name)}catch(e){setError((e as Error).message)}}
+  return <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6 space-y-5 min-w-0"><div><h2 className="text-lg font-semibold">Final review</h2><p className="text-sm text-muted">Approval binds these exact versions. It does not publish.</p></div><div className="grid gap-3 sm:grid-cols-2"><p>Pack <strong>v{pack?.version}</strong></p><p>Video <strong>v{media?.version}</strong> · {media?.originalSafeFilename}</p></div>{media&&<p className="text-xs break-all text-muted">SHA-256 {media.sha256}</p>}
+  <fieldset><legend className="font-semibold mb-2">Destinations</legend><div className="flex flex-wrap gap-4">{(Object.keys(labels) as ReleaseDestination[]).map(d=><label className="min-h-11 flex items-center gap-2" key={d}><input type="checkbox" checked={selected.includes(d)} onChange={e=>setSelected(e.target.checked?[...selected,d]:selected.filter(x=>x!==d))}/>{labels[d]}</label>)}</div><button className="rounded-lg border border-border px-4 py-2" disabled={busy||!selected.length} onClick={()=>void save()}>Save destinations</button></fieldset>
+  <div><h3 className="font-semibold">Release readiness</h3>{r.readiness.blockers.length?r.readiness.blockers.map(x=><p role="alert" className="text-warning mt-2" key={x.code}>{x.message}{x.nextAction?` ${x.nextAction}`:""}</p>):<p className="text-success mt-2">Ready for exact-version approval.</p>}{r.readiness.warnings.map(x=><p className="text-muted text-sm mt-2" key={x.code}>Warning: {x.message}</p>)}</div>{error&&<p role="alert" className="text-warning">{error}</p>}
+  {!approval?<button className="rounded-lg bg-accent px-4 py-3 font-medium" disabled={busy||!r.readiness.valid} onClick={()=>void onApprove()}>Approve this release candidate</button>:<div className="space-y-4"><div className="rounded-lg border border-success/30 bg-success/10 p-3 text-success"><strong>Approved</strong><p className="text-sm break-all">{approval.id} · {new Date(approval.approvedAt).toLocaleString()}</p><p className="text-sm">Pack v{pack?.version} · video v{media?.version} · {approval.destinations.map(d=>labels[d]).join(", ")}</p></div><div className="flex flex-wrap gap-3"><button className="rounded-lg bg-accent px-4 py-3" onClick={()=>void download(`/api/runs/${run.id}/approvals/${approval.id}/export`,"approved-pack.zip")}>Download approved pack</button><button className="rounded-lg border border-border px-4 py-3" onClick={()=>void download(`/api/runs/${run.id}/approvals/${approval.id}/video`,media?.originalSafeFilename??"finished-video.mp4")}>Download approved MP4</button><button className="rounded-lg border border-warning px-4 py-3" disabled={busy} onClick={()=>void onReopen()}>Reopen for editing</button></div></div>}</section>;
 }

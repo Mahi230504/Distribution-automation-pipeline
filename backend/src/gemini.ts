@@ -33,7 +33,7 @@ export function client() {
 }
 export interface CallOptions {
   responseJsonSchema?: Record<string, unknown>;
-  stage?: "story" | "direction" | "look" | "storyboard";
+  stage?: "story" | "direction" | "look" | "storyboard" | "pack";
   image?: boolean;
   parts?: Part[];
   aspectRatio?: "9:16" | "16:9";

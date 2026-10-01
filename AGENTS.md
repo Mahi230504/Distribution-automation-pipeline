@@ -59,7 +59,7 @@ Every run is saved with whatever stage it has reached, listed on the user's **Hi
   DECISIONS.md          — log of decisions and why they were made
 ```
 
-Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard are implemented. Session 10.3 ends with an approved Storyboard. Pack and Approve remain explicitly labelled SAMPLE.
+Both `/frontend` and `/backend` now exist. Story through approved Storyboard, versioned Pack generation, finished-video validation and exact release approval are implemented. Publishing remains outside the product until Build 5C.
 
 ## 5. How to run and test each part
 
@@ -71,6 +71,7 @@ Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard
 - `/backend`: run `npm install`, `npm run dev` from that folder. Production: `npm run build`, then `npm start`. Tests: `npm run build` then `npm test` (uses isolated temporary data and port 4101).
 - Step 4 tests add isolated temporary data on port 4102, image-reference checks and interruption recovery. See `docs/STEP4-TESTS.md`. Image files and all reviews/activity are saved through the existing storage module; local JSON remains single-process.
 - Step 5A tests add isolated two-user ownership checks on port 4105. See `docs/STEP5A-TESTS.md`. Supabase migrations and policy tests live under `supabase/`; remote verification is a separate, explicit action.
+- Step 5B tests add isolated release-candidate checks on port 4106 and frontend component-state tests. See `docs/STEP5B-TESTS.md`. They create temporary video fixtures and never use `backend/data`.
 - Backend settings live in `backend/.env`; copy `.env.example` for a new checkout. `TEST_MODE=true` by default, key empty. Local frontend configuration: `NEXT_PUBLIC_API_URL=http://localhost:4000` in `frontend/.env.local`. Open `http://localhost:3000`.
 - The assistant runs these commands; the user uses Antigravity, not VS Code. Open the key file there and never ask for the key in chat.
 - Local JSON storage allows one backend process. Multiple copies require shared database job locks in step 5. Stopping a backend during a job leaves it resumable after restart.
@@ -85,7 +86,7 @@ Both `/frontend` and `/backend` now exist. Story, Direction, Look and Storyboard
 | 3 | Backend, test mode, cost tracking, and the Story stage | ✅ TEST_MODE tests pass; live research, source review, script, selective rewrite and saved edit validated; see docs/LIVE-VALIDATION.md |
 | 4 | Direction, Look and Storyboard stages | ✅ General-purpose local pipeline verified through approved Storyboard; see docs/GENERALIZATION-VALIDATION.md for tests and limits |
 | 5A | Supabase Auth, user-owned database/private storage and protected routes | ✅ Implemented and locally tested; remote Supabase verification pending |
-| 5B | Pack generation, finished-video upload/validation and version-bound approval | ⬜ Not started |
+| 5B | Pack generation, finished-video upload/validation and version-bound approval | ✅ Implemented locally; remote Supabase verification pending |
 | 5C | YouTube, Instagram and LinkedIn publishing with jobs/recovery | ⬜ Not started |
 | 6 | Backend deployed to Render, whole flow live end to end | ⬜ Not started |
 | 7 | Hardening: Autopilot, per-user daily limits, a Usage page, error tracking, full error states, README | ⬜ Not started |

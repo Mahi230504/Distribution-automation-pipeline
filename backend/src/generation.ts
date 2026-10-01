@@ -15,6 +15,7 @@ import { validateNarration } from "./script-feedback.js";
 import { storage } from "./storage.js";
 import { settings } from "./settings.js";
 import { callAI, parseReply } from "./gemini.js";
+import { invalidateRelease } from "./release.js";
 import { response } from "./fixtures.js";
 import { imagePart, imageFixture, extractImage, storeImage } from "./images.js";
 import {
@@ -69,6 +70,7 @@ export function activity(
   });
 }
 export function invalidateBoard(r: Run) {
+  invalidateRelease(r, "Storyboard changed");
   const g = ensureGeneration(r);
   if (g.board.length) g.archivedBoards.push(g.board);
   g.board = [];

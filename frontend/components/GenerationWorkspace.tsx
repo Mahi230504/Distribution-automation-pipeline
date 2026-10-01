@@ -232,9 +232,6 @@ export default function GenerationWorkspace({
             {label(t).replace(/^./, (c) => c.toUpperCase())}
           </button>
         ))}
-        <span className="px-3 py-3 text-xs text-muted">
-          Pack · SAMPLE &nbsp; Approve · SAMPLE
-        </span>
       </div>
       {error && (
         <div

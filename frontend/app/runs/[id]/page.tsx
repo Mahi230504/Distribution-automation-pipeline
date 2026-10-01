@@ -8,6 +8,10 @@ import {
   approvePack,
   approveStory,
   generatePackForRun,
+  requestPackQuote,
+  enterReleaseReview,
+  reopenApproval,
+  restorePackVersion,
   generateStoryboard,
   getCostEstimate,
   getRun,
@@ -21,7 +25,7 @@ import {
   updatePack,
   uploadKeyFrame,
 } from "@/lib/api";
-import { Pack, Run, RunStage } from "@/lib/types";
+import { ReleasePackContent, Run } from "@/lib/types";
 import { formatCurrency } from "@/lib/format";
 import BriefIdentity from "@/components/BriefIdentity";
 import ScriptFeedbackPanel from "@/components/ScriptFeedbackPanel";
@@ -46,9 +50,6 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
   const [actionError, setActionError] = useState<string | null>(null);
   const [loadingLabel, setLoadingLabel] = useState<string | null>(null);
   const [busyFrameId, setBusyFrameId] = useState<string | null>(null);
-  const [reachedApprove, setReachedApprove] = useState(false);
-  const [approveTrackedStage, setApproveTrackedStage] =
-    useState<RunStage | null>(null);
   const [reloadIndex, setReloadIndex] = useState(0);
 
   useEffect(() => {
@@ -157,19 +158,19 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
     );
   }
 
-  // Reset the local "reached Approve" override when the run moves to a
-  // different stage entirely (e.g. reloading a run, or an action moving it
-  // on) — adjusted during render rather than in an effect, per React's
-  // guidance for resetting state when a prop changes.
-  if (approveTrackedStage !== run.currentStage) {
-    setApproveTrackedStage(run.currentStage);
-    if (run.currentStage !== "pack") setReachedApprove(false);
-  }
+  const effectiveStage = run.currentStage;
 
-  const effectiveStage =
-    run.currentStage === "pack" && reachedApprove
-      ? "approve"
-      : run.currentStage;
+  async function handleGeneratePack(currentRun: Run) {
+    if (isSampleMode()) {
+      await runAction("Assembling sample Pack", () => generatePackForRun(id));
+      return;
+    }
+    const lineage = currentRun.release?.readiness.storyboardLineage;
+    if (!lineage) { setActionError("Refresh after approving the Storyboard, then try again."); return; }
+    setLoadingLabel("Preparing Pack estimate"); setActionError(null);
+    try { const quote = await requestPackQuote(id, lineage); const accepted = window.confirm(`${quote.amountUsd === 0 ? "TEST MODE — no provider charge." : `Maximum estimated Pack allowance: $${quote.amountUsd.toFixed(4)}.`}\n\nGenerate the Pack from this approved Storyboard?`); if (accepted) setRun(await generatePackForRun(id, quote)); }
+    catch (e) { setActionError(e instanceof Error ? e.message : "Could not start Pack generation."); } finally { setLoadingLabel(null); }
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -194,6 +195,7 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
       </div>
 
       {run.sampleStages &&
+        !run.release &&
         !realGeneration &&
         !["brief", "story"].includes(run.currentStage) && (
           <span className="text-xs text-warning">
@@ -289,6 +291,9 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
       {realGeneration && (
         <GenerationWorkspace run={run} busy={busy} onAction={runAction} />
       )}
+      {run.currentStage === "storyboard" && run.generation?.boardApprovedAt && (
+        <button className="self-start rounded-lg bg-accent px-4 py-3 font-medium" disabled={busy} onClick={()=>void handleGeneratePack(run)}>Generate release Pack</button>
+      )}
       {!realGeneration && run.currentStage === "direction" && (
         <DirectionPanel
           key={run.id}
@@ -331,30 +336,29 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
           busy={busy}
           busyFrameId={busyFrameId}
           onRegenerateFrame={handleRegenerateFrame}
-          onContinueToPack={() =>
-            runAction("Assembling pack", () => generatePackForRun(id))
-          }
+          onContinueToPack={() => handleGeneratePack(run)}
         />
       )}
 
-      {run.currentStage === "pack" && !reachedApprove && (
+      {run.currentStage === "pack" && (
         <PackPanel
-          key={run.id}
+          key={`${run.id}-${run.release?.activePackVersionId ?? "none"}`}
           run={run}
           busy={busy}
-          onSave={(patch: Partial<Pack>) =>
-            runAction("Saving", () => updatePack(id, patch))
-          }
-          onContinue={() => setReachedApprove(true)}
+          onSave={(content: ReleasePackContent) => runAction("Saving new Pack version", () => updatePack(id, content, run.release?.revision, run.release?.activePackVersionId))}
+          onRestore={(sourcePackVersionId) => runAction("Restoring Pack version", () => restorePackVersion(id, sourcePackVersionId, run.release!.revision, run.release!.activePackVersionId!))}
+          onContinue={() => runAction("Opening final review", () => enterReleaseReview(id, run.release!.revision))}
+          onUpdate={setRun}
         />
       )}
 
-      {((run.currentStage === "pack" && reachedApprove) ||
-        run.currentStage === "done") && (
+      {(run.currentStage === "approve" || run.currentStage === "done") && (
         <ApprovePanel
           run={run}
           busy={busy}
-          onApprove={() => runAction("Approving", () => approvePack(id))}
+          onApprove={() => runAction("Approving exact release", () => approvePack(run))}
+          onReopen={() => runAction("Reopening release", () => reopenApproval(run))}
+          onUpdate={setRun}
         />
       )}
     </div>

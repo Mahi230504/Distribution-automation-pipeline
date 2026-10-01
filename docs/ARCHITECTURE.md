@@ -206,6 +206,14 @@ Prices below are Google's published Gemini API prices, checked **2026-09-24** (s
 
 ## 9. Production readiness checklist
 
+### Step 5B release-candidate boundary
+
+`Run.release` is the durable aggregate for immutable Pack versions, accepted final-media versions, selected destinations, readiness and append-only approvals/supersessions. Every active Pack and media version binds a canonical approved-Storyboard lineage hash. Any relevant upstream or release edit supersedes the active approval without deleting history. Build 5C must use only `activeApprovalId` and re-check its exact Pack/media/hash/destination binding before publication.
+
+Finished videos are binary private assets, never base64 run fields. Express streams uploads to a temporary file, enforces 100 MiB, probes actual bytes and saves accepted objects through the owner-scoped storage adapter. Browser previews, exports and downloads remain authenticated and return `private, no-store` with `Vary: Authorization`. The approved ZIP excludes the MP4 and points to its separate authenticated download.
+
+Release routes are `POST /api/runs/:id/pack-quotes`, `POST/PATCH /api/runs/:id/pack`, `POST /api/runs/:id/pack/restore`, `POST /api/runs/:id/final-media`, `GET /api/runs/:id/final-media/:versionId/content`, `PUT /api/runs/:id/destinations`, `POST /api/runs/:id/release/review`, `GET /api/runs/:id/release-readiness`, `POST /api/runs/:id/approve`, `POST /api/runs/:id/approval/reopen`, and the two owner-scoped approval export/download routes. All version-changing requests carry the current release revision and exact active IDs/lineage as applicable; the server recomputes validation and readiness.
+
 | Item | What it means | Delivered by step |
 |---|---|---|
 | Accounts and data separation | Every run/Brand kit belongs to one user; server sets ownership; every query filtered to the signed-in user | 5 |

@@ -1,9 +1,11 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import { createHash, randomUUID } from "node:crypto";
+import { createReadStream } from "node:fs";
+import { Upload } from "tus-js-client";
 import type { BrandKit, Run } from "../../frontend/lib/types.js";
 import { emptyBrand } from "./brief.js";
 import { settings } from "./settings.js";
-import type { AssetMetadata, StorageAdapter } from "./storage-types.js";
+import type { AssetMetadata, StorageAdapter, SaveFileAssetInput, StoredAssetRecord } from "./storage-types.js";
 import { StorageConflictError, StorageNotFoundError } from "./storage-types.js";
 
 const BUCKET = "vpo-private";
@@ -108,5 +110,31 @@ export class SupabaseStorageAdapter implements StorageAdapter {
     const result = await this.client.storage.from(asset.bucket_id).download(asset.object_path);
     failure("Could not download image", result.error);
     return Buffer.from(await result.data!.arrayBuffer());
+  }
+  async saveAssetFromFile(ownerId: string, runId: string, input: SaveFileAssetInput) {
+    await this.getRun(ownerId, runId); const id = randomUUID(), objectPath = `${ownerId}/${runId}/${id}.${input.extension}`;
+    const base = new URL(settings.supabaseUrl), hosted = base.hostname.endsWith(".supabase.co");
+    const endpoint = hosted ? `${base.protocol}//${base.hostname.replace(".supabase.co", ".storage.supabase.co")}/storage/v1/upload/resumable` : `${settings.supabaseUrl.replace(/\/$/, "")}/storage/v1/upload/resumable`;
+    await new Promise<void>((resolve, reject) => {
+      const upload = new Upload(createReadStream(input.filePath), { endpoint, uploadSize: input.byteSize, chunkSize: 6 * 1024 * 1024,
+        retryDelays: [0, 1000, 3000], removeFingerprintOnSuccess: true,
+        headers: { authorization: `Bearer ${settings.supabaseSecretKey}`, "x-upsert": "false" },
+        metadata: { bucketName: BUCKET, objectName: objectPath, contentType: input.mediaType ?? "video/mp4", cacheControl: "0" },
+        onError: reject, onSuccess: () => resolve() }); upload.start();
+    });
+    const record: StoredAssetRecord = { id, ownerId, runId, purpose: input.purpose ?? "final-video", mediaType: input.mediaType ?? "video/mp4", byteSize: input.byteSize, sha256: input.sha256, originalFilename: input.originalFilename, detectedMetadata: input.detectedMetadata, validation: input.validation, mediaVersion: input.mediaVersion };
+    const { error } = await this.client.from("assets").insert({ id, user_id: ownerId, run_id: runId, bucket_id: BUCKET, object_path: objectPath, purpose: record.purpose, asset_kind: "final-video", media_type: record.mediaType, byte_size: record.byteSize, sha256: record.sha256, original_filename: record.originalFilename, detected_metadata: record.detectedMetadata, validation: record.validation, media_version: record.mediaVersion });
+    if (error) { await this.client.storage.from(BUCKET).remove([objectPath]); throw new Error(`Could not register media: ${error.message}`); } return record;
+  }
+  async openAsset(ownerId: string, id: string) {
+    const { data, error } = await this.client.from("assets").select("id,user_id,run_id,bucket_id,object_path,purpose,media_type,byte_size,sha256,original_filename,detected_metadata,validation,media_version").eq("id", id).eq("user_id", ownerId).maybeSingle();
+    failure("Could not read asset record", error); if (!data) throw new StorageNotFoundError("Asset was not found.");
+    const downloaded = await this.client.storage.from(data.bucket_id).download(data.object_path); failure("Could not download asset", downloaded.error);
+    return { record: { id: data.id, ownerId: data.user_id, runId: data.run_id, purpose: data.purpose, mediaType: data.media_type, byteSize: Number(data.byte_size), sha256: data.sha256, originalFilename: data.original_filename, detectedMetadata: data.detected_metadata, validation: data.validation, mediaVersion: data.media_version }, bytes: Buffer.from(await downloaded.data!.arrayBuffer()) };
+  }
+  async deleteAsset(ownerId: string, id: string) {
+    const { data, error } = await this.client.from("assets").select("bucket_id,object_path").eq("id", id).eq("user_id", ownerId).maybeSingle(); failure("Could not read asset record", error); if (!data) throw new StorageNotFoundError("Asset was not found.");
+    const removed = await this.client.storage.from(data.bucket_id).remove([data.object_path]); failure("Could not remove asset", removed.error);
+    const deleted = await this.client.from("assets").delete().eq("id", id).eq("user_id", ownerId); failure("Could not delete asset record", deleted.error);
   }
 }

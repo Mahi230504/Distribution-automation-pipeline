@@ -9,9 +9,11 @@ import {
   CostEstimate,
   Frame,
   NewRunInput,
-  Pack,
   Run,
   ImageQuote,
+  PackQuote,
+  ReleasePackContent,
+  ReleaseDestination,
 } from "./types";
 import {
   generateAiCallLogEntry,
@@ -453,7 +455,10 @@ export async function regenerateFrame(
 
 // ---------- Pack & Approve ----------
 
-export async function generatePackForRun(runId: string): Promise<Run> {
+export async function requestPackQuote(runId: string, expectedStoryboardLineage: string): Promise<PackQuote> {
+  return realFetch(`/api/runs/${runId}/pack-quotes`, { method: "POST", body: JSON.stringify({ expectedStoryboardLineage }) });
+}
+export async function generatePackForRun(runId: string, quote?: PackQuote): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
     if (!run.videoPrompt)
@@ -463,6 +468,12 @@ export async function generatePackForRun(runId: string): Promise<Run> {
       getBrandKitFromStore(),
       run.videoPrompt,
     );
+    const now = new Date().toISOString(), content: ReleasePackContent = { finalPrompt: run.pack.finalPrompt, negativePrompt: run.pack.negativePrompt, thumbnailText: run.pack.thumbnailText, platforms: {
+      youtube_shorts: { title: run.pack.title, description: run.pack.captions.find(c=>c.platform==="youtube_shorts")?.caption??"", tags: run.pack.hashtags, accessibilityNotes:"Review captions.", postingNotes:run.pack.postingNotes },
+      instagram_reels: { caption: run.pack.captions.find(c=>c.platform==="instagram_reels")?.caption??"", hashtags:run.pack.hashtags, altText:`Short video about ${run.brief.topic}.`, postingNotes:run.pack.postingNotes },
+      linkedin: { title:run.pack.title, commentary:run.pack.captions.find(c=>c.platform==="linkedin")?.caption??"", hashtags:run.pack.hashtags, accessibilityNotes:"Review captions.", postingNotes:run.pack.postingNotes },
+    }};
+    run.release={schemaVersion:1,revision:1,approvalEpoch:0,packVersions:[{id:randomId("pack"),version:1,origin:"legacy_sample",createdAt:now,createdBy:"sample",changeSummary:"Standalone SAMPLE DATA",storyboardLineage:"sample",content,validation:{valid:true,policyVersion:"sample",blockers:[],warnings:[],checkedAt:now},callIds:[]}],activePackVersionId:"",mediaVersions:[],selectedDestinations:[],destinationRevision:0,readiness:{valid:false,policyVersion:"sample",blockers:[{code:"sample",message:"A configured backend is required for video validation and approval."}],warnings:[],checkedAt:now,releaseRevision:1,storyboardLineage:"sample",destinations:[]},approvals:[],supersessions:[],packQuotes:[]};run.release.activePackVersionId=run.release.packVersions[0].id;
     run.currentStage = "pack";
     run.jobStatus = "needs_review";
     run.aiCallLog.push(generateAiCallLogEntry("pack", "text", 0.005));
@@ -470,38 +481,87 @@ export async function generatePackForRun(runId: string): Promise<Run> {
     saveRunToStore(run);
     return delay(run, 1500);
   }
-  return realFetch<Run>(`/api/runs/${runId}/pack`, { method: "POST" });
+  if (!quote) throw new ApiError("Request and confirm a Pack estimate first.");
+  return realFetch<Run>(`/api/runs/${runId}/pack`, { method: "POST", body: JSON.stringify({ quoteId: quote.id, expectedStoryboardLineage: quote.storyboardLineage, expectedReleaseRevision: quote.releaseRevision }) });
 }
 
 export async function updatePack(
   runId: string,
-  patch: Partial<Pack>,
+  content: ReleasePackContent,
+  expectedReleaseRevision?: number,
+  expectedActivePackVersionId?: string,
+  changeSummary = "Saved explicit Pack edits",
 ): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
-    if (!run.pack) throw new ApiError("This run doesn't have a pack yet.");
-    run.pack = { ...run.pack, ...patch };
+    if (!run.release) throw new ApiError("This run doesn't have a pack yet.");
+    const active=run.release.packVersions.find(v=>v.id===run.release!.activePackVersionId)!;const next={...active,id:randomId("pack"),version:active.version+1,origin:"edited" as const,createdAt:new Date().toISOString(),changeSummary,content};run.release.packVersions.push(next);run.release.activePackVersionId=next.id;run.release.revision++;
     saveRunToStore(run);
     return delay(run, 300);
   }
   return realFetch<Run>(`/api/runs/${runId}/pack`, {
     method: "PATCH",
-    body: JSON.stringify(patch),
+    body: JSON.stringify({ content, expectedReleaseRevision, expectedActivePackVersionId, changeSummary }),
   });
 }
 
-export async function approvePack(runId: string): Promise<Run> {
+export async function restorePackVersion(
+  runId: string,
+  sourcePackVersionId: string,
+  expectedReleaseRevision: number,
+  expectedActivePackVersionId: string,
+): Promise<Run> {
   if (isSampleMode()) {
     const run = getRunFromStore(runId) ?? notFound(runId);
-    if (!run.pack) throw new ApiError("This run doesn't have a pack yet.");
-    run.pack.approved = true;
-    run.currentStage = "done";
-    run.jobStatus = "completed";
+    const release = run.release;
+    const prior = release?.packVersions.find((version) => version.id === sourcePackVersionId);
+    if (!release || !prior) throw new ApiError("That Pack version could not be found.");
+    const next = {
+      ...prior,
+      id: randomId("pack"),
+      version: release.packVersions.length + 1,
+      origin: "restored" as const,
+      createdAt: new Date().toISOString(),
+      changeSummary: `Restored version ${prior.version} as a new version`,
+    };
+    release.packVersions.push(next);
+    release.activePackVersionId = next.id;
+    release.revision++;
     saveRunToStore(run);
-    return delay(run, 400);
+    return delay(run, 300);
   }
-  return realFetch<Run>(`/api/runs/${runId}/approve`, { method: "POST" });
+  return realFetch<Run>(`/api/runs/${runId}/pack/restore`, {
+    method: "POST",
+    body: JSON.stringify({
+      sourcePackVersionId,
+      expectedReleaseRevision,
+      expectedActivePackVersionId,
+      changeSummary: "Restored a prior Pack as a new version",
+    }),
+  });
 }
+
+export async function saveDestinations(runId: string, destinations: ReleaseDestination[], expectedReleaseRevision: number): Promise<Run> {
+  return realFetch(`/api/runs/${runId}/destinations`, { method: "PUT", body: JSON.stringify({ destinations, expectedReleaseRevision }) });
+}
+export async function enterReleaseReview(runId: string, expectedReleaseRevision: number): Promise<Run> {
+  return realFetch(`/api/runs/${runId}/release/review`, { method: "POST", body: JSON.stringify({ expectedReleaseRevision }) });
+}
+export async function approvePack(run: Run): Promise<Run> {
+  const r = run.release, p = r?.packVersions.find(v => v.id === r.activePackVersionId), m = r?.mediaVersions.find(v => v.id === r.activeMediaVersionId);
+  if (!r || !p || !m || !r.readiness.storyboardLineage) throw new ApiError("The release is not ready for approval.");
+  if (isSampleMode()) {
+    throw new ApiError("Approval requires the configured backend.");
+  }
+  return realFetch<Run>(`/api/runs/${run.id}/approve`, { method: "POST", body: JSON.stringify({ expectedReleaseRevision: r.revision, storyboardLineage: r.readiness.storyboardLineage, packVersionId: p.id, mediaVersionId: m.id, mediaSha256: m.sha256, destinations: r.selectedDestinations }) });
+}
+
+export async function reopenApproval(run: Run): Promise<Run> { const r = run.release; if (!r?.activeApprovalId) throw new ApiError("No active approval to reopen."); return realFetch(`/api/runs/${run.id}/approval/reopen`, { method: "POST", body: JSON.stringify({ approvalId: r.activeApprovalId, expectedReleaseRevision: r.revision, confirmSupersession: true }) }); }
+export async function uploadFinalMedia(run: Run, file: File, progress: (n: number) => void): Promise<Run> {
+  const release = run.release; if (!release?.readiness.storyboardLineage) throw new ApiError("Approve the current Storyboard first."); const token = AUTH_MODE === "supabase" ? await accessTokenProvider?.() : null;
+  return new Promise((resolve, reject) => { const xhr = new XMLHttpRequest(); xhr.open("POST", `${API_URL}/api/runs/${run.id}/final-media`); xhr.responseType = "json"; xhr.setRequestHeader("Content-Type", "application/octet-stream"); xhr.setRequestHeader("X-VPO-Filename", encodeURIComponent(file.name)); xhr.setRequestHeader("X-VPO-Release-Revision", String(release.revision)); xhr.setRequestHeader("X-VPO-Storyboard-Lineage", release.readiness.storyboardLineage!); if (token) xhr.setRequestHeader("Authorization", `Bearer ${token}`); xhr.upload.onprogress = e => { if (e.lengthComputable) progress(Math.round(e.loaded/e.total*100)); }; xhr.onerror = () => reject(new ApiError("Upload failed. Check the backend and try again.")); xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve(xhr.response as Run) : reject(new ApiError(xhr.response?.error ?? "Video was rejected.")); xhr.send(file); });
+}
+export async function fetchDownload(path: string): Promise<Blob> { return fetchAsset(path); }
 
 // ---------- Brand kit ----------
 

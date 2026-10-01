@@ -1,142 +1,22 @@
 "use client";
-
 import { useState } from "react";
-import { Pack, PLATFORM_LABELS, Run } from "@/lib/types";
-import CopyButton from "@/components/CopyButton";
-
-const inputClass =
-  "rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:border-accent";
-
-// Rendered with key={run.id} by its caller, so switching runs remounts this
-// component and these lazy initial values are always for the right pack.
-export default function PackPanel({
-  run,
-  busy,
-  onSave,
-  onContinue,
-}: {
-  run: Run;
-  busy: boolean;
-  onSave: (patch: Partial<Pack>) => void;
-  onContinue: () => void;
-}) {
-  const pack = run.pack;
-  const [title, setTitle] = useState(pack?.title ?? "");
-  const [finalPrompt, setFinalPrompt] = useState(pack?.finalPrompt ?? "");
-  const [negativePrompt, setNegativePrompt] = useState(pack?.negativePrompt ?? "");
-  const [captions, setCaptions] = useState(pack?.captions ?? []);
-  const [hashtagsText, setHashtagsText] = useState(pack?.hashtags.join(" ") ?? "");
-  const [thumbnailText, setThumbnailText] = useState(pack?.thumbnailText ?? "");
-  const [postingNotes, setPostingNotes] = useState(pack?.postingNotes ?? "");
-
-  if (!pack) return null;
-
-  function updateCaption(index: number, value: string) {
-    const next = captions.map((c, i) => (i === index ? { ...c, caption: value } : c));
-    setCaptions(next);
-  }
-
-  return (
-    <div className="flex flex-col gap-5 rounded-2xl border border-border bg-surface p-5 sm:p-6">
-      <div>
-        <h2 className="text-lg font-semibold">Pack</h2>
-        <p className="mt-1 text-sm text-muted">Generated automatically. Everything here is editable.</p>
-      </div>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Title</span>
-        <input
-          className={inputClass}
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          onBlur={() => onSave({ title })}
-        />
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Final video prompt</span>
-          <CopyButton text={finalPrompt} />
-        </div>
-        <textarea
-          className={`${inputClass} min-h-24 resize-y`}
-          value={finalPrompt}
-          onChange={(e) => setFinalPrompt(e.target.value)}
-          onBlur={() => onSave({ finalPrompt })}
-        />
-      </label>
-
-      <label className="flex flex-col gap-1.5">
-        <div className="flex items-center justify-between">
-          <span className="text-sm font-medium">Negative prompt</span>
-          <CopyButton text={negativePrompt} />
-        </div>
-        <textarea
-          className={`${inputClass} min-h-16 resize-y`}
-          value={negativePrompt}
-          onChange={(e) => setNegativePrompt(e.target.value)}
-          onBlur={() => onSave({ negativePrompt })}
-        />
-      </label>
-
-      <div className="flex flex-col gap-3">
-        <span className="text-sm font-medium">Captions</span>
-        {captions.map((caption, i) => (
-          <label key={caption.platform} className="flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <span className="text-xs text-muted">{PLATFORM_LABELS[caption.platform]}</span>
-              <CopyButton text={caption.caption} />
-            </div>
-            <textarea
-              className={`${inputClass} min-h-16 resize-y`}
-              value={caption.caption}
-              onChange={(e) => updateCaption(i, e.target.value)}
-              onBlur={() => onSave({ captions })}
-            />
-          </label>
-        ))}
-      </div>
-
-      <label className="flex flex-col gap-1.5">
-        <span className="text-sm font-medium">Hashtags</span>
-        <input
-          className={inputClass}
-          value={hashtagsText}
-          onChange={(e) => setHashtagsText(e.target.value)}
-          onBlur={() => onSave({ hashtags: hashtagsText.split(/\s+/).filter(Boolean) })}
-        />
-      </label>
-
-      <div className="grid gap-5 sm:grid-cols-2">
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Thumbnail text</span>
-          <input
-            className={inputClass}
-            value={thumbnailText}
-            onChange={(e) => setThumbnailText(e.target.value)}
-            onBlur={() => onSave({ thumbnailText })}
-          />
-        </label>
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-medium">Posting notes</span>
-          <input
-            className={inputClass}
-            value={postingNotes}
-            onChange={(e) => setPostingNotes(e.target.value)}
-            onBlur={() => onSave({ postingNotes })}
-          />
-        </label>
-      </div>
-
-      <div className="border-t border-border pt-4">
-        <button
-          onClick={onContinue}
-          disabled={busy}
-          className="rounded-lg bg-accent px-4 py-2 text-sm font-medium text-accent-foreground hover:bg-accent-strong disabled:opacity-60"
-        >
-          Continue to Approve
-        </button>
-      </div>
-    </div>
-  );
+import type { ReleasePackContent, Run } from "@/lib/types";
+import { isSampleMode, uploadFinalMedia } from "@/lib/api";
+import ProtectedVideo from "@/components/ProtectedVideo";
+const field = "w-full rounded-lg border border-border bg-background px-3 py-2 text-sm";
+export default function PackPanel({ run, busy, onSave, onRestore, onContinue, onUpdate }: { run: Run; busy: boolean; onSave: (content: ReleasePackContent) => Promise<void>; onRestore: (sourcePackVersionId: string) => Promise<void>; onContinue: () => Promise<void>; onUpdate: (run: Run) => void }) {
+  const release=run.release, active=release?.packVersions.find(v=>v.id===release.activePackVersionId), media=release?.mediaVersions.find(v=>v.id===release.activeMediaVersionId);
+  const standaloneSample = isSampleMode();
+  const [draft,setDraft]=useState<ReleasePackContent|null>(active?structuredClone(active.content):null),[progress,setProgress]=useState<number|null>(null),[error,setError]=useState("");
+  if(!release||!active||!draft)return null;
+  const setPlatform=(name:keyof ReleasePackContent["platforms"],key:string,value:string)=>setDraft({...draft,platforms:{...draft.platforms,[name]:{...draft.platforms[name],[key]:value}}});
+  async function upload(file?:File){if(!file)return;setError("");setProgress(0);try{onUpdate(await uploadFinalMedia(run,file,setProgress))}catch(e){setError((e as Error).message)}finally{setProgress(null)}}
+  return <div className="space-y-6"><section className="rounded-2xl border border-border bg-surface p-5 sm:p-6 space-y-4 min-w-0">
+    <div><h2 className="text-lg font-semibold">Pack · version {active.version}</h2><p className="text-sm text-muted">{active.origin} · {active.changeSummary}</p></div>{active.validation.blockers.map(x=><p role="alert" className="text-warning" key={x.code}>{x.message}</p>)}
+    <label>Final video prompt<textarea className={`${field} min-h-28`} value={draft.finalPrompt} onChange={e=>setDraft({...draft,finalPrompt:e.target.value})}/></label><label>Negative prompt<textarea className={`${field} min-h-20`} value={draft.negativePrompt} onChange={e=>setDraft({...draft,negativePrompt:e.target.value})}/></label><label>Thumbnail text<input className={field} value={draft.thumbnailText} onChange={e=>setDraft({...draft,thumbnailText:e.target.value})}/></label>
+    <div className="grid gap-5 lg:grid-cols-3"><fieldset className="space-y-3 min-w-0"><legend className="font-semibold">YouTube Shorts</legend><input aria-label="YouTube title" className={field} value={draft.platforms.youtube_shorts.title} onChange={e=>setPlatform("youtube_shorts","title",e.target.value)}/><textarea aria-label="YouTube description" className={`${field} min-h-32`} value={draft.platforms.youtube_shorts.description} onChange={e=>setPlatform("youtube_shorts","description",e.target.value)}/><input aria-label="YouTube tags" className={field} value={draft.platforms.youtube_shorts.tags.join(", ")} onChange={e=>setDraft({...draft,platforms:{...draft.platforms,youtube_shorts:{...draft.platforms.youtube_shorts,tags:e.target.value.split(",").map(x=>x.trim()).filter(Boolean)}}})}/><textarea aria-label="YouTube accessibility notes" className={field} value={draft.platforms.youtube_shorts.accessibilityNotes} onChange={e=>setPlatform("youtube_shorts","accessibilityNotes",e.target.value)}/><textarea aria-label="YouTube posting notes" className={field} value={draft.platforms.youtube_shorts.postingNotes} onChange={e=>setPlatform("youtube_shorts","postingNotes",e.target.value)}/></fieldset>
+    <fieldset className="space-y-3 min-w-0"><legend className="font-semibold">Instagram Reels</legend><textarea aria-label="Instagram caption" className={`${field} min-h-32`} value={draft.platforms.instagram_reels.caption} onChange={e=>setPlatform("instagram_reels","caption",e.target.value)}/><input aria-label="Instagram hashtags" className={field} value={draft.platforms.instagram_reels.hashtags.join(" ")} onChange={e=>setDraft({...draft,platforms:{...draft.platforms,instagram_reels:{...draft.platforms.instagram_reels,hashtags:e.target.value.split(/\s+/).filter(Boolean)}}})}/><textarea aria-label="Instagram alt text" className={field} value={draft.platforms.instagram_reels.altText} onChange={e=>setPlatform("instagram_reels","altText",e.target.value)}/><textarea aria-label="Instagram posting notes" className={field} value={draft.platforms.instagram_reels.postingNotes} onChange={e=>setPlatform("instagram_reels","postingNotes",e.target.value)}/></fieldset>
+    <fieldset className="space-y-3 min-w-0"><legend className="font-semibold">LinkedIn</legend><input aria-label="LinkedIn title" className={field} value={draft.platforms.linkedin.title} onChange={e=>setPlatform("linkedin","title",e.target.value)}/><textarea aria-label="LinkedIn commentary" className={`${field} min-h-32`} value={draft.platforms.linkedin.commentary} onChange={e=>setPlatform("linkedin","commentary",e.target.value)}/><input aria-label="LinkedIn hashtags" className={field} value={draft.platforms.linkedin.hashtags.join(" ")} onChange={e=>setDraft({...draft,platforms:{...draft.platforms,linkedin:{...draft.platforms.linkedin,hashtags:e.target.value.split(/\s+/).filter(Boolean)}}})}/><textarea aria-label="LinkedIn accessibility notes" className={field} value={draft.platforms.linkedin.accessibilityNotes} onChange={e=>setPlatform("linkedin","accessibilityNotes",e.target.value)}/><textarea aria-label="LinkedIn posting notes" className={field} value={draft.platforms.linkedin.postingNotes} onChange={e=>setPlatform("linkedin","postingNotes",e.target.value)}/></fieldset></div>
+    <button className="rounded-lg bg-accent px-4 py-3 font-medium" disabled={busy} onClick={()=>void onSave(draft)}>Save as new Pack version</button><details><summary className="cursor-pointer">Pack history ({release.packVersions.length})</summary><div className="divide-y divide-border">{[...release.packVersions].reverse().map(v=><div className="flex flex-wrap items-center justify-between gap-3 py-3 text-sm" key={v.id}><p>v{v.version} · {v.origin} · {v.changeSummary}</p>{v.id!==active.id&&<button className="rounded-lg border border-border px-3 py-2 font-medium" disabled={busy} onClick={()=>void onRestore(v.id)}>Restore as new version</button>}</div>)}</div></details></section>
+    <section className="rounded-2xl border border-border bg-surface p-5 sm:p-6 space-y-4"><h2 className="text-lg font-semibold">Finished video</h2><p className="text-sm text-muted">MP4 · H.264 · optional AAC · 15–60 seconds · 1080×1920 or 720×1280 · up to 100 MB.</p>{standaloneSample&&<p className="text-sm text-warning">Connect the backend to validate and privately store a finished video. Standalone sample data cannot be approved.</p>}<label className="block rounded-xl border border-dashed border-border p-5">Choose or drop one MP4<input className="mt-3 block max-w-full" type="file" accept="video/mp4" disabled={standaloneSample||busy||progress!==null} onChange={e=>{void upload(e.target.files?.[0]);e.target.value=""}}/></label>{progress!==null&&<div role="status"><progress className="w-full" max={100} value={progress}/><p>{progress<100?`Uploading ${progress}%`:"Validating and saving privately…"}</p></div>}{error&&<p role="alert" className="text-warning">{error}</p>}{media&&<div className="space-y-3"><p><strong>{media.originalSafeFilename}</strong> · {(media.byteSize/1048576).toFixed(1)} MB · {media.probe.durationSeconds.toFixed(2)}s · {media.probe.displayWidth}×{media.probe.displayHeight} · {media.probe.videoCodec}{media.probe.audioCodecs.length?` / ${media.probe.audioCodecs.join(", ")}`:" / no audio"}</p><p className="text-xs break-all text-muted">SHA-256 {media.sha256}</p><ProtectedVideo src={`/api/runs/${run.id}/final-media/${media.id}/content`} className="max-h-[520px] w-full bg-black"/></div>}<button className="rounded-lg bg-accent px-4 py-3 font-medium" disabled={busy||!media||!active.validation.valid} onClick={()=>void onContinue()}>Continue to final review</button></section></div>;
 }

@@ -61,6 +61,10 @@ export const settings = {
   uploadBytes: number("UPLOAD_SIZE_LIMIT_BYTES", 5242880),
   fixtureScenario: process.env.TEST_SCENARIO ?? "pass",
   searchPrice: number("SEARCH_REQUEST_PRICE", 0.014),
+  ffprobePath: process.env.FFPROBE_PATH ?? "ffprobe",
+  mediaProbeTimeoutMs: number("MEDIA_PROBE_TIMEOUT_MS", 30000),
+  packInputAllowance: number("PACK_INPUT_TOKEN_ALLOWANCE", 16000),
+  packOutputAllowance: number("PACK_OUTPUT_TOKEN_ALLOWANCE", 6000),
 };
 
 const validModePair =

@@ -1,0 +1,12 @@
+begin;
+create extension if not exists pgtap with schema extensions;
+select plan(7);
+select has_column('public','assets','asset_kind','generalized asset kind exists');
+select has_column('public','assets','original_filename','safe original filename exists');
+select has_column('public','assets','detected_metadata','probe metadata exists');
+select has_column('public','assets','validation','media validation exists');
+select has_column('public','assets','media_version','media version exists');
+select ok(exists(select 1 from pg_constraint where conname='assets_kind_check'),'asset kind constraint exists');
+select ok(exists(select 1 from pg_indexes where schemaname='public' and indexname='assets_release_media_idx'),'owner/run media index exists');
+select * from finish();
+rollback;

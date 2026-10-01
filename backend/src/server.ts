@@ -5,13 +5,14 @@ import type { Run } from "../../frontend/lib/types.js";
 import { settings, safeError } from "./settings.js";
 import { storage } from "./storage.js";
 import { health } from "./gemini.js";
-import { recover, startJob, isBusy } from "./jobs.js";
+import { recover, startJob } from "./jobs.js";
 import { parseScript } from "./script.js";
 import { generationRouter } from "./generation-routes.js";
 import { interpretationSchema, emptyBrand, mode } from "./brief.js";
 import { repairRouter } from "./repair-routes.js";
-import { sampleAction } from "./samples.js";
 import { authenticate, owner } from "./auth.js";
+import { releaseRouter } from "./release-routes.js";
+import { releaseReadView } from "./release.js";
 const platform = z.enum(["instagram_reels", "youtube_shorts", "linkedin"]);
 const brief = z.object({
   interpretation: interpretationSchema.optional(),
@@ -51,7 +52,7 @@ app.use((req, res, next) => {
   if (origin) {
     res.setHeader("Access-Control-Allow-Origin", origin);
     res.setHeader("Vary", "Origin");
-    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization, X-VPO-Filename, X-VPO-Release-Revision, X-VPO-Storyboard-Lineage");
     res.setHeader("Access-Control-Allow-Methods", "GET,POST,PATCH,PUT,OPTIONS");
   }
   if (req.method === "OPTIONS") {
@@ -72,6 +73,7 @@ app.get("/api/health", async (_req, res) => {
 app.use("/api", authenticate);
 app.use(repairRouter);
 app.use(generationRouter);
+app.use(releaseRouter);
 app.get("/api/brand-kit", async (req, res) =>
   res.json(await storage.getBrandKit(owner(req))),
 );
@@ -129,7 +131,7 @@ app.post("/api/runs", async (req, res) => {
   res.status(201).json(await storage.createRun(owner(req), r));
 });
 app.get("/api/runs/:id", async (req, res) =>
-  res.json(await storage.getRun(owner(req), req.params.id)),
+  res.json(releaseReadView(await storage.getRun(owner(req), req.params.id))),
 );
 app.get("/api/runs/:id/jobs/:jobId", async (req, res) => {
   const r = await storage.getRun(owner(req), req.params.id);
@@ -164,50 +166,6 @@ app.get("/api/runs/:id/cost-estimate", async (req, res) => {
     amountUsd: 0,
     detail: "SAMPLE stage: no AI call or charge in step 3.",
   });
-});
-function sample(route: string, action: string) {
-  app.post(route, async (req, res) =>
-    res.json(
-      await storage.updateRun(owner(req), String(req.params.id), (r) => {
-        if (isBusy(r)) throw new Error("Wait for the running job.");
-        if (
-          action === "directions" &&
-          (r.jobStatus !== "needs_review" ||
-            !r.script ||
-            (!r.facts.length && !r.brief.pastedScript))
-        )
-          throw new Error("Complete Story first");
-        sampleAction(
-          r,
-          action,
-          req.body ?? {},
-          String(req.params.directionId ?? req.params.frameId ?? ""),
-        );
-      }),
-    ),
-  );
-}
-sample("/api/runs/:id/pack", "pack");
-sample("/api/runs/:id/approve", "approve");
-app.patch("/api/runs/:id/pack", async (req, res) => {
-  const patch = z
-    .object({
-      finalPrompt: z.string(),
-      negativePrompt: z.string(),
-      title: z.string(),
-      captions: z.array(z.object({ platform, caption: z.string() })),
-      hashtags: z.array(z.string()),
-      thumbnailText: z.string(),
-      postingNotes: z.string(),
-    })
-    .partial()
-    .parse(req.body);
-  res.json(
-    await storage.updateRun(owner(req), req.params.id, (r) => {
-      if (!r.pack) throw new Error("No pack available");
-      r.pack = { ...r.pack, ...patch, approved: false };
-    }),
-  );
 });
 app.use((_req, res) => res.status(404).json({ error: "Route not available." }));
 app.use(

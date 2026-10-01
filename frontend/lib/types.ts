@@ -199,6 +199,63 @@ export interface Pack {
   approved: boolean;
 }
 
+export type ReleaseDestination = Platform;
+export interface ValidationIssue { code: string; message: string; nextAction?: string; }
+export interface ValidationResult {
+  valid: boolean;
+  policyVersion: string;
+  blockers: ValidationIssue[];
+  warnings: ValidationIssue[];
+  checkedAt: string;
+}
+export interface PlatformPackEntries {
+  youtube_shorts: { title: string; description: string; tags: string[]; accessibilityNotes: string; postingNotes: string };
+  instagram_reels: { caption: string; hashtags: string[]; altText: string; postingNotes: string };
+  linkedin: { title: string; commentary: string; hashtags: string[]; accessibilityNotes: string; postingNotes: string };
+}
+export interface ReleasePackContent {
+  finalPrompt: string;
+  negativePrompt: string;
+  thumbnailText: string;
+  platforms: PlatformPackEntries;
+}
+export interface PackVersion {
+  id: string; version: number; origin: "generated" | "edited" | "restored" | "legacy_sample";
+  createdAt: string; createdBy: string; changeSummary: string; storyboardLineage: string;
+  content: ReleasePackContent; validation: ValidationResult; callIds: string[];
+}
+export interface MediaProbeResult {
+  container: string; videoCodec: string; audioCodecs: string[]; durationSeconds: number;
+  codedWidth: number; codedHeight: number; displayWidth: number; displayHeight: number; rotation: number;
+}
+export interface FinalMediaVersion {
+  id: string; version: number; assetId: string; storyboardLineage: string;
+  originalSafeFilename: string; detectedMediaType: "video/mp4"; byteSize: number; sha256: string;
+  probe: MediaProbeResult; validation: ValidationResult; createdAt: string; createdBy: string;
+}
+export interface ReleaseReadiness extends ValidationResult {
+  releaseRevision: number; storyboardLineage?: string; packVersionId?: string; mediaVersionId?: string;
+  destinations: ReleaseDestination[];
+}
+export interface ReleaseApproval {
+  id: string; version: number; ownerId: string; runId: string; approvalEpoch: number;
+  storyboardLineage: string; packVersionId: string; mediaVersionId: string; mediaSha256: string;
+  destinations: ReleaseDestination[]; readinessFingerprint: string; approvedAt: string; approvedBy: string;
+}
+export interface ApprovalSupersession { approvalId: string; at: string; reason: string; releaseRevision: number; }
+export interface PackQuote {
+  id: string; storyboardLineage: string; releaseRevision: number; inputHash: string; amountUsd: number;
+  expiresAt: string; settingsFingerprint: string; usedByJobId?: string;
+}
+export interface ReleaseState {
+  schemaVersion: 1; revision: number; approvalEpoch: number;
+  packVersions: PackVersion[]; activePackVersionId?: string;
+  mediaVersions: FinalMediaVersion[]; activeMediaVersionId?: string;
+  selectedDestinations: ReleaseDestination[]; destinationRevision: number;
+  readiness: ReleaseReadiness; approvals: ReleaseApproval[]; supersessions: ApprovalSupersession[];
+  activeApprovalId?: string; packQuotes: PackQuote[];
+}
+
 export interface Brief {
   topic: string;
   audience: string;
@@ -280,7 +337,10 @@ export interface Run {
   job?: {
     id: string;
     ownerId?: string;
-    kind: "story" | "rewrite" | "script-revision" | GenerationKind;
+    kind: "story" | "rewrite" | "script-revision" | "pack" | GenerationKind;
+    packDraft?: ReleasePackContent;
+    packCallIds?: string[];
+    ambiguousProviderResult?: boolean;
     revisionDraft?: {
       requiresResearch: boolean;
       reason: string;
@@ -335,6 +395,7 @@ export interface Run {
   videoPrompt: VideoPrompt | null;
   frames: Frame[];
   pack: Pack | null;
+  release?: ReleaseState;
   aiCallLog: AiCallLogEntry[];
 }
 

@@ -5,6 +5,7 @@ import type {
   EffectiveBrief,
 } from "../../frontend/lib/types.js";
 import { settings } from "./settings.js";
+import { invalidateRelease } from "./release.js";
 export const interpretationSchema = z.object({
   subject: z.string().trim().min(2).max(500),
   objective: z.enum(["promote", "explain", "demonstrate", "tell a story"]),
@@ -63,6 +64,7 @@ export function assertIdle(r: Run) {
     throw new Error("Finish or Resume the current job before editing.");
 }
 export function invalidateStory(r: Run) {
+  invalidateRelease(r, "Story or brief changed");
   (r.history ??= []).push({
     facts: structuredClone(r.facts),
     sources: structuredClone(r.sources),

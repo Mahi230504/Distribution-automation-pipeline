@@ -13,6 +13,7 @@ import {
 } from "./generation.js";
 import { storeImage } from "./images.js";
 import { owner } from "./auth.js";
+import { calculateReadiness, invalidateRelease } from "./release.js";
 export const generationRouter = Router();
 const note = z.string().trim().max(2000).default("");
 const confirmation = z.object({ quoteId: z.string().uuid() });
@@ -230,6 +231,7 @@ generationRouter.post(
         f.selectedAttemptId = a.id;
         f.retryLimitReached = false;
         delete g.boardApprovedAt;
+        invalidateRelease(r, "Storyboard frame restored");
         r.jobStatus = "needs_review";
         activity(
           r,
@@ -278,6 +280,7 @@ generationRouter.post("/api/runs/:id/storyboard/approve", async (req, res) =>
       g.boardApprovedAt = new Date().toISOString();
       r.currentStage = "storyboard";
       r.jobStatus = "completed";
+      calculateReadiness(r);
       activity(
         r,
         "board-approved",
