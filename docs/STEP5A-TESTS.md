@@ -11,7 +11,7 @@ All commands ran with isolated test data; no command used `backend/data`.
 | Check | Result |
 |---|---|
 | Backend TypeScript production build | PASS — `npm run build` |
-| Backend automated suite | PASS — 58/58 tests, 0 failed, 55.36 s |
+| Backend automated suite | PASS — 61/61 tests, 0 failed, 46.09 s after the protected-media correction |
 | Frontend ESLint | PASS — `npm run lint` |
 | Frontend Next.js 16.3.6 webpack production build | PASS — 5 routes built |
 | Isolated local runtime smoke | PASS — frontend HTTP 200, health HTTP 200 with `authMode=local`, `storageMode=local_json`, and rendered `LOCAL FIXTURE IDENTITY` |
@@ -51,3 +51,12 @@ No remote project or bucket was created or modified. No importer was built or ru
 - Email delivery/confirmation and hosted redirect behaviour are project configuration and remain unverified.
 - Optimistic revisions prevent silent lost writes, but distributed job claiming and a shared Gemini concurrency limiter are not implemented; run only one backend worker.
 - No claim is made about remote persistence or private Storage behaviour until the separate verification checklist in `STEP5A-SETUP.md` is completed.
+
+## Protected-media correction — 2026-10-01
+
+- Authenticated image responses now use `Cache-Control: private, no-store` and `Vary: Authorization`. The two-user image integration test asserts both headers on an allowed response and still requires a 404 for the other owner.
+- Protected-image display state is source-bound. A changed source immediately derives a clean loading state rather than retaining the earlier source's error/blob URL; the prior effect cleanup still revokes its object URL. A focused unit regression covers failed source → new source → loaded source.
+- Archived-image links reserve a blank tab synchronously before awaiting the authenticated fetch, detach `opener`, then navigate to the blob URL. The unit regression verifies that ordering. Fetch failure closes the reserved tab; popup blocking falls back to a download and an announced recovery message.
+- Browser interaction checks: Not run. The available in-app/Chrome browser surfaces reported unavailable, and two attempts to attach to the running Chrome app timed out. Automated state and interaction-order regressions, frontend lint/build and an isolated runtime were used instead; no manual/browser success is claimed.
+- Database/RLS/Storage policy tests: Not run. The Supabase CLI/local engine blocker is unchanged.
+- Remote Supabase verification: not run.

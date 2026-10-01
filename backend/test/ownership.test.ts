@@ -52,7 +52,10 @@ test("protected routes, jobs, Brand kits and assets remain owner scoped", async 
     await mkdir(join(dir, "images"), { recursive: true });
     await writeFile(join(dir, "images", `${assetId}.png`), await sharp({ create: { width: 2, height: 2, channels: 4, background: "red" } }).png().toBuffer());
     await writeFile(join(dir, `asset-${assetId}.json`), JSON.stringify({ id: assetId, ownerId: userA, runId: a.id, purpose: "image", mediaType: "image/png" }));
-    assert.equal((await request(userA, `/images/${assetId}`)).status, 200);
+    const ownedImage = await request(userA, `/images/${assetId}`);
+    assert.equal(ownedImage.status, 200);
+    assert.equal(ownedImage.headers.get("cache-control"), "private, no-store");
+    assert.equal(ownedImage.headers.get("vary"), "Authorization");
     assert.equal((await request(userB, `/images/${assetId}`)).status, 404);
   } finally {
     if (child && child.exitCode === null) { const stopped = new Promise((r) => child.once("exit", r)); child.kill("SIGKILL"); await stopped; }

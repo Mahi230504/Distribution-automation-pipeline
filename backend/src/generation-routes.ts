@@ -22,9 +22,10 @@ generationRouter.get("/api/images/:assetId", async (req, res) => {
   res
     .set({
       "Content-Type": "image/png",
-      "Cache-Control": "private, max-age=86400",
+      "Cache-Control": "private, no-store",
       "X-Content-Type-Options": "nosniff",
     })
+    .vary("Authorization")
     .send(data);
 });
 generationRouter.post("/api/runs/:id/directions", async (req, res) =>
