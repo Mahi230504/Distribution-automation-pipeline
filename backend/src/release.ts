@@ -61,12 +61,23 @@ function stableReview(review: unknown) {
   return { ...value, mode: value.mode ?? "unknown" };
 }
 
+export function retainedPackFacts(run: Run) {
+  return run.facts.filter((fact) => !fact.removed).sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export function packGenerationInputs(run: Run) {
+  const script = run.script ? { ...run.script, mode: run.script.mode ?? "unknown", beats: run.script.beats.map((beat) => ({ ...beat, factIds: [...(beat.factIds ?? [])].sort() })) } : null;
+  const selectedPrompt = run.generation?.prompts.find((item) => item.id === run.generation?.activePromptId);
+  const prompt = selectedPrompt ? { ...selectedPrompt, mode: selectedPrompt.mode ?? "unknown", review: stableReview(selectedPrompt.review) } : undefined;
+  return { brief: run.effective, audience: run.brief.audience, script, direction: run.directions.find((item) => item.id === run.selectedDirectionId), prompt, brandKit: run.brandKit, facts: retainedPackFacts(run) };
+}
+
 export function storyboardLineage(run: Run): string | undefined {
   const selected = selectedReleaseInputs(run); if (!selected) return;
   const { direction, prompt, key, board } = selected;
-  const retainedFactIds = new Set(run.script!.beats.flatMap((beat) => beat.factIds ?? []));
-  const retainedFacts = run.facts.filter((fact) => retainedFactIds.has(fact.id)).sort((a, b) => a.id.localeCompare(b.id));
+  const retainedFacts = retainedPackFacts(run);
   return fingerprint({
+    packProviderInputs: packGenerationInputs(run),
     approvedBrief: { effective: run.effective, brief: { ...run.brief, sourceLinks: [...run.brief.sourceLinks].sort() }, revision: run.storyApproval!.briefRevision },
     approvedScript: { ...run.script, mode: run.script!.mode ?? "unknown", beats: run.script!.beats.map((beat) => ({ ...beat, factIds: [...(beat.factIds ?? [])].sort() })) },
     retainedFacts,
@@ -79,14 +90,14 @@ export function storyboardLineage(run: Run): string | undefined {
 
 export function packInputReferences(run: Run): PackInputReferences {
   const selected = selectedReleaseInputs(run); if (!selected || !run.storyApproval || !run.script) throw new Error("Approve the current Storyboard first.");
-  const retainedFactIds = [...new Set(run.script.beats.flatMap((beat) => beat.factIds ?? []))].sort();
+  const retainedFactIds = retainedPackFacts(run).map((fact) => fact.id);
   const storyboard = selected.board.map(({ frame, attempt }) => ({ frameId: frame.id, order: frame.order, instruction: frame.instruction, beatIds: [...frame.beatIds], selectedAttemptId: attempt.id, assetId: attempt.assetId }));
   const refs = { briefRevision: run.storyApproval.briefRevision, scriptVersion: run.storyApproval.scriptVersion, directionId: selected.direction.id, promptId: selected.prompt.id, approvedKeyAttemptId: selected.key.id, approvedKeyAssetId: selected.key.assetId, retainedFactIds, beatIds: run.script.beats.map((beat) => beat.id), storyboard };
-  return { ...refs, inputFingerprint: fingerprint(refs) };
+  return { ...refs, inputFingerprint: fingerprint(packGenerationInputs(run)) };
 }
 
 function approvedClaimCorpus(run: Run) {
-  const retained = run.facts.filter((fact) => !fact.removed);
+  const retained = retainedPackFacts(run);
   return canonicalJson({ effective: run.effective, brief: run.brief, script: run.script, facts: retained.map((fact) => ({ id: fact.id, text: fact.text, supportedText: fact.supportedText })) });
 }
 function packText(content: ReleasePackContent) { return canonicalJson(content); }
@@ -136,14 +147,15 @@ function emptyRelease(at: string): ReleaseState { return { schemaVersion: 1, rev
 function legacyPackId(run: Run) { const value = fingerprint({ runId: run.id, pack: run.pack }); return `${value.slice(0,8)}-${value.slice(8,12)}-4000-8000-${value.slice(12,24)}`; }
 function legacyPackContent(run: Run): ReleasePackContent { const pack=run.pack!, caption=(platform:string)=>pack.captions.find((item)=>item.platform===platform)?.caption??""; return { finalPrompt:pack.finalPrompt,negativePrompt:pack.negativePrompt,thumbnailText:pack.thumbnailText,platforms:{youtube_shorts:{title:pack.title,description:caption("youtube_shorts"),tags:pack.hashtags,accessibilityNotes:"Review captions and audio description needs.",postingNotes:pack.postingNotes},instagram_reels:{caption:caption("instagram_reels"),hashtags:pack.hashtags,altText:"Review and add an accurate description of the finished video.",postingNotes:pack.postingNotes},linkedin:{title:pack.title,commentary:caption("linkedin"),hashtags:pack.hashtags,accessibilityNotes:"Review captions and audio description needs.",postingNotes:pack.postingNotes}}}; }
 export function ensureRelease(run: Run): ReleaseState {
-  if (run.release) { run.release.packIntents ??= []; for (const pack of run.release.packVersions) { pack.provenance ??= run.mode === "live" ? "live" : pack.origin === "legacy_sample" ? "legacy_sample" : "test"; pack.validationPolicyFingerprint ??= RELEASE_POLICY_FINGERPRINT; } return run.release; }
+  if (run.release) { run.release.packIntents ??= []; return run.release; }
   const release=emptyRelease(run.updatedAt);
-  if(run.pack){const content=legacyPackContent(run),lineage=storyboardLineage(run)??"legacy-unbound";const version:PackVersion={id:legacyPackId(run),version:0,origin:"legacy_sample",provenance:"legacy_sample",validationPolicyFingerprint:RELEASE_POLICY_FINGERPRINT,createdAt:run.updatedAt,createdBy:run.userId,changeSummary:"Read-only legacy sample Pack; generate a new Pack to approve",storyboardLineage:lineage,content,validation:validatePack(content,{checkedAt:run.updatedAt}),callIds:[]};release.packVersions.push(version);release.activePackVersionId=version.id;}
+  if(run.pack){const content=legacyPackContent(run),lineage=storyboardLineage(run)??"legacy-unbound";const version:PackVersion={id:legacyPackId(run),version:0,origin:"legacy_sample",provenance:"legacy_sample",validationPolicyFingerprint:"legacy-sample",createdAt:run.updatedAt,createdBy:run.userId,changeSummary:"Read-only legacy sample Pack; generate a new Pack to approve",storyboardLineage:lineage,content,validation:validatePack(content,{checkedAt:run.updatedAt}),callIds:[]};release.packVersions.push(version);release.activePackVersionId=version.id;}
   run.release=release; calculateReadiness(run,run.updatedAt); return release;
 }
 export function releaseReadView(run:Run):Run{if(!run.release&&!run.pack)return run;const view=structuredClone(run);ensureRelease(view);if(view.release?.packVersions.some((pack)=>pack.origin==="legacy_sample")&&["approve","done"].includes(view.currentStage))view.currentStage="pack";return view;}
 export function activePack(run:Run){const release=ensureRelease(run);return release.packVersions.find((version)=>version.id===release.activePackVersionId);}
 export function activeMedia(run:Run){const release=ensureRelease(run);return release.mediaVersions.find((version)=>version.id===release.activeMediaVersionId);}
+export function assertPackUserMutationIdle(run:Run){if(["queued","running"].includes(run.jobStatus))throw new Error("Wait for the active Pack job before editing or restoring a Pack version.");}
 
 export interface PreparedSupersession { approvalId:string; at:string; reason:string; releaseRevision:number; }
 export function prepareSupersession(run:Run,reason:string,at=timestamp()):PreparedSupersession|undefined{const release=ensureRelease(run);return release.activeApprovalId?{approvalId:release.activeApprovalId,at,reason,releaseRevision:release.revision+1}:undefined;}
@@ -154,7 +166,7 @@ export function invalidateRelease(run:Run,reason:string){const release=ensureRel
 export function calculateReadiness(run:Run,checkedAt=timestamp()){
   const release=ensureRelease(run),blockers:ValidationIssue[]=[],warnings:ValidationIssue[]=[];const lineage=storyboardLineage(run),pack=activePack(run),media=activeMedia(run);
   if(!lineage)blockers.push(issue("storyboard_missing","The current Storyboard is not approved.","Approve the current Storyboard."));
-  if(!pack)blockers.push(issue("pack_missing","No active Pack version is available.","Generate a Pack."));else{blockers.push(...pack.validation.blockers);warnings.push(...pack.validation.warnings);if(pack.provenance==="legacy_sample")blockers.push(issue("legacy_sample_ineligible","This legacy/sample Pack cannot be approved.","Generate a new Pack from the approved Storyboard."));if(lineage&&pack.storyboardLineage!==lineage)blockers.push(issue("pack_stale","The Pack belongs to an older Storyboard.","Generate a new Pack."));if(pack.validationPolicyFingerprint!==RELEASE_POLICY_FINGERPRINT)blockers.push(issue("pack_policy_stale","The Pack was validated under an older policy.","Save or generate a new Pack."));}
+  if(!pack)blockers.push(issue("pack_missing","No active Pack version is available.","Generate a Pack."));else{blockers.push(...pack.validation.blockers);warnings.push(...pack.validation.warnings);if(pack.provenance==="legacy_sample")blockers.push(issue("legacy_sample_ineligible","This legacy/sample Pack cannot be approved.","Generate a new Pack from the approved Storyboard."));else if(pack.provenance!=="test"&&pack.provenance!=="live")blockers.push(issue("pack_provenance_unknown","This Pack predates saved TEST/LIVE provenance.","Save, restore or regenerate it under the current policy."));if(lineage&&pack.storyboardLineage!==lineage)blockers.push(issue("pack_stale","The Pack belongs to an older Storyboard.","Generate a new Pack."));if(pack.validationPolicyFingerprint!==RELEASE_POLICY_FINGERPRINT)blockers.push(issue("pack_policy_stale","The Pack was validated under an older or unknown policy.","Save, restore or generate a new Pack."));}
   if(!media)blockers.push(issue("media_missing","No validated finished video is available.","Upload the finished MP4."));else{blockers.push(...media.validation.blockers);warnings.push(...media.validation.warnings);if(lineage&&media.storyboardLineage!==lineage)blockers.push(issue("media_stale","The finished video belongs to an older Storyboard.","Upload the current finished video."));}
   if(!release.selectedDestinations.length)blockers.push(issue("destinations_missing","Choose at least one destination.","Select YouTube, Instagram or LinkedIn."));
   const result={valid:blockers.length===0,policyVersion:RELEASE_POLICY_VERSION,blockers,warnings,checkedAt,releaseRevision:release.revision,storyboardLineage:lineage,packVersionId:pack?.id,mediaVersionId:media?.id,destinations:[...release.selectedDestinations].sort() as ReleaseDestination[]};release.readiness=result;return result;
@@ -168,7 +180,7 @@ export function applyPackVersion(run:Run,version:PackVersion,expectedRevision:nu
 
 export function applyMediaVersion(run:Run,version:import("../../frontend/lib/types.js").FinalMediaVersion,expectedRevision:number,expectedActiveMediaVersionId:string|undefined,preparedSupersession?:PreparedSupersession){const release=ensureRelease(run);if(release.mediaVersions.some((item)=>item.id===version.id))return version;if(release.revision!==expectedRevision||release.activeMediaVersionId!==expectedActiveMediaVersionId||storyboardLineage(run)!==version.storyboardLineage)throw new Error("The release or active video changed during upload. Refresh and upload again.");const hadApproval=!!release.activeApprovalId;applySupersession(run,preparedSupersession);release.revision++;release.mediaVersions.push(structuredClone(version));release.activeMediaVersionId=version.id;run.currentStage=hadApproval?"approve":"pack";run.jobStatus="needs_review";calculateReadiness(run,version.createdAt);return version;}
 
-export function readinessFingerprint(run:Run){const release=ensureRelease(run),pack=activePack(run),media=activeMedia(run),lineage=storyboardLineage(run),destinations=[...release.selectedDestinations].sort();if(!pack||!media||!lineage)return;return fingerprint({policyVersion:RELEASE_POLICY_VERSION,policyFingerprint:RELEASE_POLICY_FINGERPRINT,packProvenance:pack.provenance,approvalEpoch:release.approvalEpoch,lineage,packVersionId:pack.id,mediaVersionId:media.id,mediaSha256:media.sha256,destinations});}
-export function approvalMatchesActive(run:Run,approval:ReleaseApproval){const release=ensureRelease(run),pack=activePack(run),media=activeMedia(run),lineage=storyboardLineage(run);return !!pack&&!!media&&!!lineage&&approval.ownerId===run.userId&&approval.runId===run.id&&approval.approvalEpoch===release.approvalEpoch&&approval.storyboardLineage===lineage&&approval.packVersionId===pack.id&&approval.packProvenance===pack.provenance&&approval.policyFingerprint===RELEASE_POLICY_FINGERPRINT&&approval.mediaVersionId===media.id&&approval.mediaSha256===media.sha256&&canonicalJson([...approval.destinations].sort())===canonicalJson([...release.selectedDestinations].sort())&&approval.readinessFingerprint===readinessFingerprint(run);}
+export function readinessFingerprint(run:Run){const release=ensureRelease(run),pack=activePack(run),media=activeMedia(run),lineage=storyboardLineage(run),destinations=[...release.selectedDestinations].sort();if(!pack||!media||!lineage)return;return fingerprint({policyVersion:RELEASE_POLICY_VERSION,policyFingerprint:RELEASE_POLICY_FINGERPRINT,packProvenance:pack.provenance??"unknown",approvalEpoch:release.approvalEpoch,lineage,packVersionId:pack.id,mediaVersionId:media.id,mediaSha256:media.sha256,destinations});}
+export function approvalMatchesActive(run:Run,approval:ReleaseApproval){const release=ensureRelease(run),pack=activePack(run),media=activeMedia(run),lineage=storyboardLineage(run);return !!pack&&!!media&&!!lineage&&pack.validationPolicyFingerprint===RELEASE_POLICY_FINGERPRINT&&approval.ownerId===run.userId&&approval.runId===run.id&&approval.approvalEpoch===release.approvalEpoch&&approval.storyboardLineage===lineage&&approval.packVersionId===pack.id&&approval.packProvenance===pack.provenance&&approval.policyFingerprint===RELEASE_POLICY_FINGERPRINT&&approval.mediaVersionId===media.id&&approval.mediaSha256===media.sha256&&canonicalJson([...approval.destinations].sort())===canonicalJson([...release.selectedDestinations].sort())&&approval.readinessFingerprint===readinessFingerprint(run);}
 export function applyApproval(run:Run,approval:ReleaseApproval,expectedRevision:number,checkedAt:string){const release=ensureRelease(run);if(release.activeApprovalId===approval.id&&release.approvals.some((item)=>item.id===approval.id))return approval;const readiness=calculateReadiness(run,checkedAt);if(!readiness.valid||release.revision!==expectedRevision||readinessFingerprint(run)!==approval.readinessFingerprint)throw new Error("Release changed before approval. Refresh and review again.");if(!release.approvals.some((item)=>item.id===approval.id))release.approvals.push(structuredClone(approval));release.activeApprovalId=approval.id;run.currentStage="done";run.jobStatus="completed";return approval;}
 export function applyReopen(run:Run,approvalId:string,expectedRevision:number,supersession:PreparedSupersession,checkedAt:string){const release=ensureRelease(run);if(release.supersessions.some((item)=>item.approvalId===approvalId&&item.at===supersession.at)){run.currentStage="approve";return;}if(release.revision!==expectedRevision||release.activeApprovalId!==approvalId)throw new Error("Approval changed. Refresh first.");applySupersession(run,supersession);release.revision++;run.currentStage="approve";run.jobStatus="needs_review";calculateReadiness(run,checkedAt);}

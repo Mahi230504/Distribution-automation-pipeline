@@ -5,7 +5,7 @@ import { storage } from "./storage.js";
 import { settings } from "./settings.js";
 import { callAI, parseReply } from "./gemini.js";
 import { response } from "./fixtures.js";
-import { applyPackVersion, ensureRelease, fingerprint, preparePackVersion, RELEASE_POLICY_FINGERPRINT, storyboardLineage } from "./release.js";
+import { applyPackVersion, canonicalJson, ensureRelease, fingerprint, packGenerationInputs, preparePackVersion, RELEASE_POLICY_FINGERPRINT, storyboardLineage } from "./release.js";
 
 const entry = z.string().trim().max(20000);
 export const packSchema = z.object({ finalPrompt: entry.min(1), negativePrompt: entry.min(1), thumbnailText: entry.max(300), platforms: z.object({
@@ -22,13 +22,14 @@ export function packFixture(run: Run): ReleasePackContent {
     linkedin: { title: subject.slice(0,120), commentary: `A concise visual story about ${subject}, adapted from the approved script.`, hashtags: ["#Video"], accessibilityNotes: "Add accurate captions and review the video title.", postingNotes: "Review author, visibility and commentary before publishing." },
   } };
 }
-export function packContext(run: Run) { return JSON.stringify({ brief: run.effective, audience: run.brief.audience, script: run.script, direction: run.directions.find((item) => item.id === run.selectedDirectionId), prompt: run.generation?.prompts.find((item) => item.id === run.generation?.activePromptId), brandKit: run.brandKit, facts: run.facts.filter((fact) => !fact.removed) }); }
+export function packContext(run: Run) { return canonicalJson(packGenerationInputs(run)); }
 export function packSettingsFingerprint() { return fingerprint({ model: settings.main, input: settings.mainInput, output: settings.mainOutput, retries: settings.retries, test: settings.test }); }
+export function packProvenance(run: Run) { return run.mode === "live" ? ("live" as const) : ("test" as const); }
 
 export async function createPackQuote(ownerId: string, id: string, expectedLineage: string) {
   const before = await storage.getRun(ownerId, id), lineage = storyboardLineage(before), release = ensureRelease(before);
   if (!lineage || lineage !== expectedLineage) throw new Error("The approved Storyboard changed. Refresh first.");
-  const createdAt = new Date(), quote: PackQuote = { id: randomUUID(), storyboardLineage: lineage, releaseRevision: release.revision, inputHash: fingerprint(packContext(before)), amountUsd: settings.test ? 0 : (settings.packInputAllowance * settings.mainInput + settings.packOutputAllowance * settings.mainOutput) / 1e6 * (settings.retries + 1), expiresAt: new Date(createdAt.getTime()+15*60_000).toISOString(), settingsFingerprint: packSettingsFingerprint() };
+  const createdAt = new Date(), quote: PackQuote = { id: randomUUID(), storyboardLineage: lineage, releaseRevision: release.revision, inputHash: fingerprint(packContext(before)), amountUsd: settings.test ? 0 : (settings.packInputAllowance * settings.mainInput + settings.packOutputAllowance * settings.mainOutput) / 1e6 * (settings.retries + 1), expiresAt: new Date(createdAt.getTime()+15*60_000).toISOString(), settingsFingerprint: packSettingsFingerprint(), validationPolicyFingerprint: RELEASE_POLICY_FINGERPRINT, provenance: packProvenance(before) };
   const saved = await storage.updateRun(ownerId, id, run => { const current=ensureRelease(run);if(current.packQuotes.some((item)=>item.id===quote.id))return;if(current.revision!==quote.releaseRevision||storyboardLineage(run)!==quote.storyboardLineage)throw new Error("The approved Storyboard changed. Refresh first.");current.packQuotes.push(structuredClone(quote)); });
   return ensureRelease(saved).packQuotes.find((item)=>item.id===quote.id)!;
 }

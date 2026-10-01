@@ -235,7 +235,7 @@ export interface PackInputReferences {
 export interface PackVersion {
   id: string; version: number; origin: "generated" | "edited" | "restored" | "legacy_sample";
   createdAt: string; createdBy: string; changeSummary: string; storyboardLineage: string;
-  provenance: ReleaseProvenance; validationPolicyFingerprint: string;
+  provenance?: ReleaseProvenance; validationPolicyFingerprint?: string;
   inputReferences?: PackInputReferences;
   content: ReleasePackContent; validation: ValidationResult; callIds: string[];
 }
@@ -261,7 +261,8 @@ export interface ReleaseApproval {
 export interface ApprovalSupersession { approvalId: string; at: string; reason: string; releaseRevision: number; }
 export interface PackQuote {
   id: string; storyboardLineage: string; releaseRevision: number; inputHash: string; amountUsd: number;
-  expiresAt: string; settingsFingerprint: string; usedByJobId?: string;
+  expiresAt: string; settingsFingerprint: string; validationPolicyFingerprint?: string;
+  provenance?: Exclude<ReleaseProvenance, "legacy_sample">; usedByJobId?: string;
 }
 export interface PackIntent {
   id: string; quoteId: string; jobId: string; packVersionId: string;

@@ -10,8 +10,8 @@ find backend/data -type f -print0 | sort -z | xargs -0 shasum | shasum
 ## Automated results
 
 - Backend TypeScript production build: pass.
-- Backend suite: 73/73 pass. Existing Steps 1–4 and 5A regressions remain green.
-- Focused Step 5B backend selection: 12/12 pass.
+- Backend suite: 77/77 pass. Existing Steps 1–4 and 5A regressions remain green.
+- Focused Step 5B backend selection: 16/16 pass.
 - Frontend component suite: 6/6 pass.
 - Frontend ESLint: pass.
 - Frontend Next.js 16.3.6 webpack production build: pass.
@@ -20,12 +20,14 @@ find backend/data -type f -print0 | sort -z | xargs -0 shasum | shasum
 
 ## Asserted Step 5B evidence
 
-- Canonical Storyboard lineage changes when approved brief, script, referenced retained-fact content, direction, prompt, approved key, Storyboard instruction or selected attempt content changes. Equivalent objects with different key insertion order produce the same hash.
+- Canonical Storyboard lineage changes when approved brief, script, any non-removed fact sent to Pack, direction, prompt, approved key, Storyboard instruction or selected attempt content changes. Equivalent objects with different key insertion order produce the same hash. Changing an excluded removed fact changes neither lineage nor quote input hash.
+- Provider context, lineage, recorded `retainedFactIds` and claim corpus use the same ID-sorted set of every non-removed fact. Provider context is canonical JSON, and its input hash is stable across object-key insertion order.
 - TEST and live generated Pack provenance, version 1 creation, policy fingerprint and exact input references are persisted. Legacy/sample Pack data projects as read-only version 0 and remains blocked by `legacy_sample_ineligible` even if other release pieces exist.
+- A serialized pre-r2 release fixture with no saved policy fingerprint or provenance remains readable, retains those absent fields after read projection, receives `pack_policy_stale`/`pack_provenance_unknown`, fails the exact approved-export gate, and can create a separate current-policy version only through explicit revalidation.
 - Table-driven Pack validation rejects removed/unknown references and novel URLs, prices, percentages and numeric claims. Matching approved-source values pass. This is deterministic claim syntax/reference evidence, not proof of all qualitative semantics.
-- A Pack intent binds the quote/intent/job/Pack IDs, lineage/revision, settings fingerprint, policy fingerprint and provenance. Reconfirmation is idempotent; a simultaneous second intent is rejected. Pre-call and saved-draft checkpoints resume the same intent, while an ambiguous result refuses reuse.
+- A Pack quote and intent bind the quote/intent/job/Pack IDs, canonical input hash, lineage/revision, settings fingerprint, policy fingerprint and provenance. Old-policy and changed-provenance quotes are stale. A forced retry that crosses quote expiry retains the prepared confirmation decision; confirmation after expiry fails. Reconfirmation is idempotent; a simultaneous second intent is rejected. Pre-call and saved-draft checkpoints resume the same intent, while an ambiguous result refuses reuse.
 - Forced compare-and-swap retries reuse the exact prepared Pack intent, Pack version, media version, approval and Reopen/supersession payloads without duplicates. An injected persistence conflict after a provider result leaves the provider-call count at one.
-- Pack edit creates a version, stale edit is rejected, restore creates another version, and history is preserved.
+- Pack edit creates a version, stale edit is rejected, restore creates another version, and history is preserved. The shared mutation guard rejects restore during both queued and running Pack jobs without changing version history.
 - The real MP4 passes byte probing. Deterministic tests reject spoofed headers, corrupt input, wrong container, video codec, audio codec, dimensions, duration and size. Oversized `Content-Length` is rejected before streaming; an aborted stream removes its temporary directory.
 - Probe stdout/stderr bounds, timeout, unavailable status, one-settlement behavior and concurrency cap are asserted with injected child-process fakes.
 - Media activation requires both release revision and the exact active-media token. A stale token fails before probing. Two concurrent uploads using the same tokens produce one activation and one conflict; the losing request removes only its new object/metadata. Previous accepted media remains in history.
