@@ -125,3 +125,22 @@ The required rollout remains: **Supabase ownership → deployed TEST application
 - **Not run:** authenticated deployed-browser acceptance. The computer-control bridge could list Chrome and Safari but timed out attaching to either existing authenticated window; its isolated browser had no designated-user session. No user or session was created because this gate forbids Auth/data mutation. Gate B therefore did not start.
 - **Blocked:** Meta and LinkedIn remain absent and unavailable. No placeholder or partial pair is accepted.
 - **Not run:** LIVE Gemini, provider OAuth and external publication. Final modes remain TEST AI and TEST publishing.
+
+## Session 11.2 Gate A browser completion and Gate B bounded activation — 2 October 2026
+
+This section supersedes the Gate A browser **Not run** boundary immediately above.
+
+- **Pass:** a controlled Chromium engine authenticated with the retained deployment E2E account and restored the session after refresh. The authenticated owner-scoped publication response exposed only `provider`, `configured`, `available` and coarse `status` capability fields.
+- **Pass:** YouTube was available with an actionable Connect control. Instagram and LinkedIn displayed **Not configured** and had no Connect/Reconnect control or keyboard action. Delaying the capability request kept controls fail-closed.
+- **Pass:** desktop and exact 390 px acceptance, including no horizontal overflow or clipped interactive control. Pack, exact release approval and a private simulated YouTube TEST publication completed without OAuth, Gemini or social-provider traffic.
+- **Pass:** the Gate A run, four private objects, publication state and simulated connection were removed. Re-queries returned zero across the affected tables, Storage prefix and OAuth state. The reusable E2E account remains.
+- **Pass:** backend-only discovery for the exact Google API project listed `gemini-3.8-flash`, `gemini-3.5-flash-lite` and `gemini-3.1-flash-image`; all three accepted `countTokens`. Official model, image, pricing and rate-limit pages were rechecked on 2026-10-02. No model identifier changed.
+- **Pass:** readiness remained 26/26. Exact prepared-secret checks found no match in tracked source, built frontend output, frontend environment, browser state, captured run response or Render logs.
+- **Pass:** LIVE AI / TEST publishing transition deployed as `dep-davs68id0e5s7396d4u0`. Health reported `testMode: false` and `publishingMode: test`; Meta and LinkedIn remained absent.
+- **Pass:** one fictional LIVE run completed Story and Direction with eight successful model calls, no images and a $0.0226027 application estimate. Five calls used `gemini-3.8-flash`; three used `gemini-3.5-flash-lite`. No billing or rate-limit error occurred.
+- **Blocked:** the next key-frame confirmation quoted a conservative $1.4466 maximum allowance. Adding that allowance to the recorded $0.0226027 would exceed the authorized $1.25 ceiling, so the image call and all later workflow stages were not executed.
+- **Pass:** only `TEST_MODE` was returned to `true`; rollback deploy `dep-davs9c7avr4c73d84uv0` became live and all health routes returned 200 with TEST AI / TEST publishing. `PUBLISH_MODE` never changed.
+- **Pass:** the disposable LIVE run and exact Storage prefix re-queried as zero across runs, assets, publication/idempotency/job/secret tables and private objects. No LIVE asset, approval, publication or provider connection existed to retain.
+- **Not run:** direct AI Studio billing/rate-limit dashboard inspection, Gate B exact-390/refresh/cross-user/private-media checks, LIVE-AI Pack/approval/TEST publication, Google OAuth, YouTube upload, Meta/Instagram OAuth or publication, and LinkedIn OAuth or publication.
+
+Gate B is not complete. The final retained mode is TEST AI and TEST publishing. A future Gate B attempt needs an explicitly reviewed ceiling that covers the displayed conservative Look allowance, or an explicitly approved reference-upload path that makes no image-generation call. Gate C was not started.
