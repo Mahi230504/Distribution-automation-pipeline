@@ -227,3 +227,8 @@ Official provider documentation and retrieval date are recorded in `STEP5C-DESIG
 ### 2026-10-02 — Explicit Storyboard review override
 
 - Automated frame review remains visible and still drives automatic repair, but it is advisory at the final human Storyboard decision. A completed Storyboard with selected, reviewed attempts can be approved only through an explicit warning acknowledgement when any selected frame still fails intent, visible checks or critical review. The exact overridden frame IDs and failed evidence remain saved and enter the canonical Storyboard lineage. Missing frames, attempts or reviews cannot be overridden.
+
+### 2026-10-02 — Live Pack structured-output recovery
+
+- Supply Gemini with the complete Pack JSON Schema, including all three platform-specific objects and their required fields. A generic object schema can allow a successful but unusable provider response.
+- If parsing still fails after a provider response, keep the original intent terminal and ambiguous. The recovery UI requires a fresh estimate and explicit confirmation for a new intent; it never replays the paid call whose result could not be reconciled.

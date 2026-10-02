@@ -7,13 +7,14 @@ import { spawn, spawnSync, type ChildProcess } from "node:child_process";
 import type { Run } from "../../frontend/lib/types.js";
 import type { FinalMediaVersion, PackQuote, ReleaseApproval } from "../../frontend/lib/types.js";
 import { activePack, applyApproval, applyMediaVersion, applyPackVersion, applyReopen, approvalMatchesActive, assertPackUserMutationIdle, calculateReadiness, ensureRelease, fingerprint, packInputReferences, preparePackVersion, prepareSupersession, readinessFingerprint, releaseReadView, RELEASE_POLICY_FINGERPRINT, storyboardLineage, validatePack } from "../src/release.js";
-import { packContext, packFixture, packProvenance, packSettingsFingerprint } from "../src/pack.js";
+import { packContext, packFixture, packProvenance, packResponseJsonSchema, packSettingsFingerprint } from "../src/pack.js";
 import { validateProbe } from "../src/media.js";
 import { optimisticRunUpdate } from "../src/supabase-storage.js";
 import { applyPackIntent, applyPackResume, preparePackIntent } from "../src/jobs.js";
 import { approvedRun, userA, userB } from "./fixtures.js";
 
 const sleep=(n:number)=>new Promise(r=>setTimeout(r,n));
+test("live Pack generation supplies the complete structured response contract",()=>{const schema=packResponseJsonSchema as Record<string,any>;assert.deepEqual([...schema.required].sort(),["finalPrompt","negativePrompt","platforms","thumbnailText"]);const platforms=schema.properties.platforms;assert.deepEqual([...platforms.required].sort(),["instagram_reels","linkedin","youtube_shorts"]);assert.deepEqual([...platforms.properties.youtube_shorts.required].sort(),["accessibilityNotes","description","postingNotes","tags","title"]);assert.deepEqual([...platforms.properties.instagram_reels.required].sort(),["altText","caption","hashtags","postingNotes"]);assert.deepEqual([...platforms.properties.linkedin.required].sort(),["accessibilityNotes","commentary","hashtags","postingNotes","title"]);});
 function currentQuote(run:Run,id:string,expiresAt="2999-01-01T00:00:00.000Z"):PackQuote{return{id,storyboardLineage:storyboardLineage(run)!,releaseRevision:ensureRelease(run).revision,inputHash:fingerprint(packContext(run)),amountUsd:0,expiresAt,settingsFingerprint:packSettingsFingerprint(),validationPolicyFingerprint:RELEASE_POLICY_FINGERPRINT,provenance:packProvenance(run)};}
 test("Step 5B release candidate is versioned, media-probed, owner-scoped, approved, exported and reopened",async()=>{const dir=await mkdtemp(path.join(tmpdir(),"vpo-step5b-")),port=4106,base=`http://127.0.0.1:${port}/api`;let child:ChildProcess|undefined;try{const fixture=approvedRun(dir),lineage=storyboardLineage(fixture)!;assert.equal(lineage.length,64);await writeFile(path.join(dir,`run-${fixture.id}.json`),JSON.stringify(fixture));
   const video=path.join(dir,"valid.mp4"),made=spawnSync("ffmpeg",["-y","-f","lavfi","-i","color=c=black:s=720x1280:r=1:d=15","-f","lavfi","-i","anullsrc=r=44100:cl=stereo","-c:v","libx264","-pix_fmt","yuv420p","-c:a","aac","-shortest","-movflags","+faststart",video],{encoding:"utf8"});assert.equal(made.status,0,made.stderr);

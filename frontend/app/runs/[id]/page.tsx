@@ -346,6 +346,7 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
           key={`${run.id}-${run.release?.activePackVersionId ?? "none"}`}
           run={run}
           busy={busy}
+          onGenerate={() => handleGeneratePack(run)}
           onSave={(content: ReleasePackContent) => runAction("Saving new Pack version", () => updatePack(id, content, run.release?.revision, run.release?.activePackVersionId))}
           onRestore={(sourcePackVersionId) => runAction("Restoring Pack version", () => restorePackVersion(id, sourcePackVersionId, run.release!.revision, run.release!.activePackVersionId!))}
           onContinue={() => runAction("Opening final review", () => enterReleaseReview(id, run.release!.revision))}
