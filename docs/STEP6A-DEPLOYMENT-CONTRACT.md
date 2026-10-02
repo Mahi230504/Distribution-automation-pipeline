@@ -1,7 +1,7 @@
 # Session 11.2 Build 6A — production preflight and deployment contract
 
 Date: 2 October 2026
-Evidence boundary: local and live-Supabase preflight only. No Render service was created or changed.
+Evidence boundary at Build 6A: local and live-Supabase preflight only. Build 6B deployment evidence is recorded separately in `STEP6B-DEPLOYMENT-EVIDENCE.md`.
 
 ## Deployment topology and Blueprint
 
@@ -10,9 +10,9 @@ The Blueprint declares each service exactly once:
 | Intended service | Render type/runtime | Root | Build | Start | Health |
 |---|---|---|---|---|---|
 | `vpo-studio` | web / Docker | `frontend` | Docker `npm ci`, then `npm run build` | `npm start -- -H 0.0.0.0` | none |
-| `vpo-studio-backend` | web / Docker | `backend` | Docker `npm ci`, then `npm run build` | `npm start` → `node dist/backend/src/server.js` | `/api/ready` |
+| `vpo-studio-backend` | web / Docker | repository root, `./backend/Dockerfile` | Docker copies the backend plus its shared frontend type contract, runs `npm ci`, then `npm run build` | `npm start` → `node dist/backend/src/server.js` | `/api/ready` |
 
-The intended URLs are `https://vpo-studio.onrender.com` and `https://vpo-studio-backend.onrender.com`. They are configuration proposals, not deployment evidence, until Build 6B identifies or creates those exact services. The backend has one instance. Render Free rejects the configurable shutdown-delay field, so the Blueprint relies on Render's 30-second default termination window and the application uses a shorter 25-second deadline. No migration command runs during build or start.
+Build 6B created the exact URLs `https://vpo-studio.onrender.com` and `https://vpo-studio-backend.onrender.com`; identifiers and deployed evidence are in `STEP6B-DEPLOYMENT-EVIDENCE.md`. The backend repository-root Docker context is required because its compiled type contract imports `frontend/lib/types.ts`; runtime files remain confined to the backend image. The backend has one instance. Render Free rejects the configurable shutdown-delay field, so the Blueprint relies on Render's 30-second default termination window and the application uses a shorter 25-second deadline. No migration command runs during build or start.
 
 ## Operating-mode stages
 
@@ -34,7 +34,7 @@ Production never derives either external-effects mode from `NODE_ENV`. Meta and 
 | Optional provider credential | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `META_CLIENT_ID`, `META_CLIENT_SECRET`, `META_GRAPH_API_VERSION`, `LINKEDIN_CLIENT_ID`, `LINKEDIN_CLIENT_SECRET`, `LINKEDIN_API_VERSION` | ID/secret pairs must be complete if present; provider/version requirements apply only to configured LIVE capability. They do not affect general readiness. |
 | Local/test only | `STORAGE_LOCAL_PATH`, `TEST_DELAY_MS`, `TEST_SCENARIO` | Never used as a production fallback. |
 
-`PORT` is intentionally not declared in the Blueprint because Render supplies it. Secret values use `sync: false`; none is committed.
+`PORT` is intentionally not declared in the Blueprint because Render supplies it. Secret values use `sync: false`; none is committed. The initial Blueprint omits unavailable Meta and LinkedIn declarations because Render required every declared `sync: false` value during creation; those optional variables remain in this matrix for Stage 3 and must be added only as complete real pairs.
 
 ## Health and traffic contract
 

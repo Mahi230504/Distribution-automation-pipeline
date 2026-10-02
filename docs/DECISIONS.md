@@ -256,3 +256,13 @@ Official guidance verified 2026-10-02:
 - [Render deploy troubleshooting](https://render.com/docs/troubleshooting-deploys)
 - [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosting)
 - [Supabase Auth redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)
+
+## 2026-10-02 — Session 11.2 Build 6B: deployed TEST environment
+
+- Deploy the exact two-service Blueprint once in Render workspace `Generalist`, Singapore, Free, one instance each. Keep the unrelated `media-app-builder` service excluded; add no Render database or disk.
+- Use repository root as the backend Docker context because the compiled backend imports the shared `frontend/lib/types.ts` contract. The image still installs and runs from `/app/backend`; no frontend runtime or backend secret is exposed to the browser.
+- Omit unavailable optional Meta and LinkedIn `sync: false` declarations during initial Blueprint creation rather than entering empty, placeholder or half-configured values. Keep the variable names documented and add each provider only as a complete Stage 3 capability.
+- Use the project-scoped Supabase resumable upload endpoint and send the current server key in both the bearer and `apikey` headers. The older direct Storage-host pattern does not accept Supabase's current secret-key format. Keep the bucket private and retain the owner-scoped application route.
+- Treat real deployed browser acceptance as distinct evidence from component/local HTTP tests. The Stage 1 browser run proved session restoration, two-user isolation, private media, TEST provenance, responsive layout and simulated publication recovery without Gemini or provider traffic.
+- Preserve exactly-once logical publication intent and evidence across restart; do not claim exactly-once provider network execution. Render routing may hide the brief draining interval, so absence of an observed 503 is not evidence that draining did not occur.
+- Keep rollback and Free-plan cold-start as documented procedures when there is no operational reason to manufacture a defect or wait for an idle spin-down.

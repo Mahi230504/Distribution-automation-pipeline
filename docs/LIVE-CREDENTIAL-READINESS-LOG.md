@@ -1,17 +1,17 @@
 # Live credential and deployment readiness log
 
 Date: 2 October 2026  
-Scope: Session 11.1 provider/OAuth readiness plus deployment preparation. Production deployment, remote migrations and live publications remain Session 11.2 actions.
+Scope: Session 11.1 provider/OAuth readiness, Session 11.2 deployment preparation, and the Build 6B deployed TEST environment. Live AI and live provider publication remain separately authorized later actions.
 
 This log intentionally records identifiers, callback URLs, configuration names and verification results without recording client secrets, access tokens, refresh tokens, service-role keys or API-key values.
 
-## Intended application endpoints (not deployed evidence)
+## Application endpoints
 
-- Intended frontend: `https://vpo-studio.onrender.com`
-- Intended backend: `https://vpo-studio-backend.onrender.com`
-- Intended YouTube callback: `https://vpo-studio-backend.onrender.com/oauth/youtube/callback`
-- Intended Instagram callback: `https://vpo-studio-backend.onrender.com/oauth/instagram/callback`
-- Intended LinkedIn callback: `https://vpo-studio-backend.onrender.com/oauth/linkedin/callback`
+- Deployed frontend: `https://vpo-studio.onrender.com`
+- Deployed backend: `https://vpo-studio-backend.onrender.com`
+- YouTube callback: `https://vpo-studio-backend.onrender.com/oauth/youtube/callback`
+- Instagram callback: `https://vpo-studio-backend.onrender.com/oauth/instagram/callback`
+- LinkedIn callback: `https://vpo-studio-backend.onrender.com/oauth/linkedin/callback`
 - Local callback base for controlled tests: `http://localhost:4000`
 
 ## Actions and observations
@@ -94,6 +94,21 @@ At the time of this log, Google and Supabase credentials are present; Meta and L
 - **Pass:** redacted deployment readiness checker: core 26/26; YouTube capability ready; Instagram and LinkedIn optional/not ready.
 - **Not run:** Render Blueprint apply, Render deployment, deployed-browser E2E, real OAuth exchange, real Gemini validation, or real provider upload/publication.
 
-The required rollout remains: **Supabase ownership → deployed TEST application → LIVE AI validation → LIVE provider validation**. The intended Render names and URLs above remain proposals until Build 6B successfully creates or identifies those exact services.
+The required rollout remains: **Supabase ownership → deployed TEST application → LIVE AI validation → LIVE provider validation**. Build 6B subsequently created the exact intended Render names and URLs; the deployment section below records that evidence.
 
 Official Render, Next.js and Supabase guidance was rechecked on 2026-10-02; links and resulting decisions are recorded in `STEP6A-DEPLOYMENT-CONTRACT.md` and `DECISIONS.md`.
+
+## Session 11.2 Build 6B deployment — 2 October 2026
+
+- **Pass:** applied Blueprint `exs-davqc9flk1mc73c5f3d0` once and created exactly the two intended Singapore Free services. No database, disk, paid plan or duplicate VPO service exists. Current validation is valid with zero actions.
+- **Pass:** backend `srv-davqdau0tbcc73evt97g` and frontend `srv-davqdau0tbcc73evt970` are live at the exact intended URLs. Build/deploy identifiers and source commits are recorded in `STEP6B-DEPLOYMENT-EVIDENCE.md`.
+- **Pass:** Stage 1 modes remained Supabase ownership/storage, TEST AI and TEST publishing. Meta and LinkedIn remain genuinely absent; prepared Gemini and Google values remained inert.
+- **Pass:** deployed `/api/live`, `/api/ready`, `/api/health`, exact CORS, unauthenticated rejection, public-bundle secret scan and runtime-log audit.
+- **Pass:** real-browser two-user authentication/session restoration, History persistence, cross-owner exact-ID denial, private-media isolation, deterministic TEST flow, Pack/release approval and simulated publication.
+- **Pass:** compared the actual frontend URL with Supabase Auth URL Configuration. Site URL and production/localhost redirect entries were already correct; no dashboard change was required.
+- **Pass:** actual backend restart retained the same logical batch, intent, job and idempotency binding; the recovered TEST job reached its simulated terminal checkpoint without provider traffic. A drain 503 was not observable through Render routing.
+- **Pass:** cleanup re-queried every affected application table, both Storage prefixes and Auth. Both disposable users, all rows and all four objects were absent; no cleanup errors or residue remained.
+- **Pass:** 1440 px and exact 390 px browser acceptance. A real narrow-screen overflow was corrected and the redeployed viewport finished with no horizontal overflow.
+- **Not run:** Free-plan idle cold-start timing, rollback execution, real Gemini, real provider OAuth, or live upload/publication. Procedures and remaining gates are recorded in `STEP6B-DEPLOYMENT-EVIDENCE.md`.
+
+The required rollout remains: **Supabase ownership → deployed TEST application → LIVE AI validation → LIVE provider validation**.

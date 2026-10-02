@@ -418,6 +418,14 @@ Results and score summaries remain visible; successful detailed reviews, full pr
 
 Active-run polling waits for the previous response before scheduling another, using 1.5 seconds when visible and 10 seconds when hidden. Build 6A replaced provider-backed public health with a short cached, coalesced Supabase readiness probe; Gemini model availability is verified separately during controlled LIVE AI evidence, never on Render's traffic-routing path. No job data is stored in the readiness cache.
 
+### Deployed TEST topology — Session 11.2 Build 6B
+
+The deployed Stage 1 topology is `https://vpo-studio.onrender.com` → `https://vpo-studio-backend.onrender.com` → the designated Supabase Auth/Postgres/private Storage project. Both Render services are one-instance Docker web services in Singapore on the Free plan. The backend uses repository-root Docker context solely to copy the shared frontend type contract, then builds and runs from `/app/backend`. There is no Render database or persistent disk.
+
+Render routes backend traffic using `/api/ready`; `/api/live` remains dependency-free liveness and `/api/health` remains safe frontend mode metadata. The deployed browser bundle contains only the four explicit `NEXT_PUBLIC_*` values. Supabase resumable media upload uses the project `/storage/v1/upload/resumable` endpoint with server authentication; owner-scoped retrieval still passes through Express and the private bucket.
+
+Stage 1 stays `TEST_MODE=true` and `PUBLISH_MODE=test`. Stored Gemini and Google credentials are inert, while unavailable Meta and LinkedIn credentials are absent. Deployed restart evidence retained one logical TEST publication batch/intent/job/idempotency binding and recovered it from durable Supabase checkpoints without provider traffic. Full evidence and resource identifiers are in `STEP6B-DEPLOYMENT-EVIDENCE.md`.
+
 ## Step 5A ownership foundation — 2026-10-01
 
 Step 5A replaces implicit production ownership without building Pack, final-media approval or publishing. Pack and Approve remain visibly SAMPLE.
