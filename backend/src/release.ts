@@ -74,7 +74,7 @@ export function packGenerationInputs(run: Run) {
 
 export function storyboardLineage(run: Run): string | undefined {
   const selected = selectedReleaseInputs(run); if (!selected) return;
-  const { direction, prompt, key, board } = selected;
+  const { generation, direction, prompt, key, board } = selected;
   const retainedFacts = retainedPackFacts(run);
   return fingerprint({
     packProviderInputs: packGenerationInputs(run),
@@ -84,6 +84,7 @@ export function storyboardLineage(run: Run): string | undefined {
     selectedDirection: direction,
     activePrompt: { id: prompt.id, revision: prompt.revision, attempt: prompt.attempt, prompt: prompt.prompt, negativePrompt: prompt.negativePrompt, visualBible: prompt.visualBible, directionId: prompt.directionId, mode: prompt.mode ?? "unknown", review: stableReview(prompt.review) },
     approvedKey: { id: key.id, assetId: key.assetId, attempt: key.attempt, source: key.source, mode: key.mode ?? "unknown", stillPrompt: key.stillPrompt, note: key.note, observation: key.observation, intentAudit: key.intentAudit, review: stableReview(key.review) },
+    storyboardApproval: generation.boardApproval?{reviewOverride:generation.boardApproval.reviewOverride,overriddenFrameIds:[...generation.boardApproval.overriddenFrameIds].sort()}:undefined,
     storyboard: board.map(({ frame, attempt }) => ({ frameId: frame.id, order: frame.order, instruction: frame.instruction, beatIds: [...frame.beatIds], selectedAttempt: { id: attempt.id, assetId: attempt.assetId, attempt: attempt.attempt, source: attempt.source, mode: attempt.mode ?? "unknown", stillPrompt: attempt.stillPrompt, note: attempt.note, observation: attempt.observation, intentAudit: attempt.intentAudit, review: stableReview(attempt.review) } })),
   });
 }

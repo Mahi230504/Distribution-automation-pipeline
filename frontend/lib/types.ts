@@ -575,6 +575,11 @@ export interface GenerationState {
   board: BoardFrame[];
   archivedBoards: BoardFrame[][];
   boardApprovedAt?: string;
+  boardApproval?: {
+    at: string;
+    reviewOverride: boolean;
+    overriddenFrameIds: string[];
+  };
   quotes: ImageQuote[];
   activities: GenerationActivity[];
   manualRegenerations: number;

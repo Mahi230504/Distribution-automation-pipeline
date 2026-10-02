@@ -177,6 +177,14 @@ export default function GenerationWorkspace({
           : "direction"));
   const prompt = g?.prompts.find((p) => p.id === g.activePromptId);
   const key = g?.keys.find((k) => k.id === g.activeKeyId);
+  const reviewWarningFrames = g?.board.filter((frame) => {
+    const selected = frame.attempts.find((attempt) => attempt.id === frame.selectedAttemptId);
+    return !!selected && (selected.intentAudit?.passed === false || selected.review?.visibleChecks?.some((check) => !check.observed) || !!selected.review?.criticalFailures?.length);
+  }) ?? [];
+  const storyboardStructurallyReady = !!g?.board.length && g.board.every((frame) => {
+    const selected = frame.attempts.find((attempt) => attempt.id === frame.selectedAttemptId);
+    return frame.complete && !!selected && (frame.isKey || !!selected.review);
+  });
   async function estimate(
     action: ImageQuote["action"],
     note = "",
@@ -738,36 +746,26 @@ export default function GenerationWorkspace({
                 })}
               </div>
               <p className="text-sm text-muted">
-                Failed visual requirements must be resolved, or a previous
-                passing attempt restored, before approval.
+                Automated visual warnings remain attached to the selected frames. You may regenerate, restore a passing attempt, or explicitly approve the completed Storyboard with those warnings.
               </p>
               <button
                 className={button}
                 disabled={
                   busy ||
-                  g.board.some((f) => {
-                    const a = f.attempts.find(
-                      (a) => a.id === f.selectedAttemptId,
-                    );
-                    return (
-                      !f.complete ||
-                      !a ||
-                      a.intentAudit?.passed === false ||
-                      a.review?.visibleChecks?.some((c) => !c.observed) ||
-                      !!a.review?.criticalFailures?.length
-                    );
-                  }) ||
+                  !storyboardStructurallyReady ||
                   !!g.boardApprovedAt
                 }
-                onClick={() =>
-                  onAction("Approving Storyboard", () =>
-                    approveStoryboard(run.id),
-                  )
-                }
+                onClick={() => {
+                  const override=reviewWarningFrames.length>0;
+                  if(override&&!window.confirm(`Automated review still flags ${reviewWarningFrames.map(frame=>`Frame ${frame.order+1}`).join(", ")}. Approve this completed Storyboard anyway? The warnings and selected attempts will remain saved in its audit history.`))return;
+                  void onAction(override?"Approving Storyboard with review warnings":"Approving Storyboard", () => approveStoryboard(run.id,override));
+                }}
               >
                 {g.boardApprovedAt
                   ? "Storyboard approved"
-                  : "Approve Storyboard"}
+                  : reviewWarningFrames.length
+                    ? "Approve Storyboard with review warnings"
+                    : "Approve Storyboard"}
               </button>
             </>
           )}

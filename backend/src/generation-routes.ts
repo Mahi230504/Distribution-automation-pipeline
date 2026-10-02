@@ -10,6 +10,7 @@ import {
   invalidateLook,
   activity,
   invalidateBoard,
+  assertStoryboardReviewComplete,
 } from "./generation.js";
 import { storeImage } from "./images.js";
 import { owner } from "./auth.js";
@@ -231,6 +232,7 @@ generationRouter.post(
         f.selectedAttemptId = a.id;
         f.retryLimitReached = false;
         delete g.boardApprovedAt;
+        delete g.boardApproval;
         invalidateRelease(r, "Storyboard frame restored");
         r.jobStatus = "needs_review";
         activity(
@@ -244,7 +246,8 @@ generationRouter.post(
     );
   },
 );
-generationRouter.post("/api/runs/:id/storyboard/approve", async (req, res) =>
+generationRouter.post("/api/runs/:id/storyboard/approve", async (req, res) => {
+  const body=z.object({confirmReviewOverride:z.boolean().default(false)}).parse(req.body??{}),approvedAt=new Date().toISOString();
   res.json(
     await storage.updateRun(owner(req), runId(req.params), (r) => {
       const g = ensureGeneration(r);
@@ -262,31 +265,18 @@ generationRouter.post("/api/runs/:id/storyboard/approve", async (req, res) =>
         r.storyApproval?.scriptVersion,
         r.storyApproval?.briefRevision,
       );
-      if (
-        g.board.some((f) => {
-          const a = f.attempts.find((a) => a.id === f.selectedAttemptId);
-          return (
-            !a ||
-            (!f.isKey && !a.review) ||
-            a.intentAudit?.passed === false ||
-            a.review?.visibleChecks?.some((c) => !c.observed) ||
-            !!a.review?.criticalFailures?.length
-          );
-        })
-      )
-        throw new Error(
-          "Resolve failed visual requirements or restore a passing frame before approving the Storyboard.",
-        );
-      g.boardApprovedAt = new Date().toISOString();
+      const failedFrameIds=assertStoryboardReviewComplete(g,body.confirmReviewOverride);
+      g.boardApprovedAt = approvedAt;
+      g.boardApproval={at:approvedAt,reviewOverride:failedFrameIds.length>0,overriddenFrameIds:failedFrameIds};
       r.currentStage = "storyboard";
       r.jobStatus = "completed";
       calculateReadiness(r);
       activity(
         r,
         "board-approved",
-        "Storyboard approved — Session 10.3 complete",
+        failedFrameIds.length?`Storyboard approved with explicit review override for ${failedFrameIds.length} frame${failedFrameIds.length===1?"":"s"}.`:"Storyboard approved — Session 10.3 complete",
         "completed",
       );
     }),
-  ),
-);
+  );
+});

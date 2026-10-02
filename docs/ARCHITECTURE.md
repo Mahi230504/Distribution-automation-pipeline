@@ -406,7 +406,7 @@ No new infrastructure or publishing features were added. See `GENERALIZATION-VAL
 
 ### Saved-frame recovery
 
-`POST /api/runs/:id/frames/:frameId/restore` selects a previous passing attempt, requiring its ID and the expected current selection. It rejects concurrent/stale changes, does not call AI, preserves all attempts and invalidates Storyboard approval. `restoredFromAttemptId` records recovery. Final Storyboard approval rejects failed critical or visible requirements even when numerical scores are high.
+`POST /api/runs/:id/frames/:frameId/restore` selects a previous passing attempt, requiring its ID and the expected current selection. It rejects concurrent/stale changes, does not call AI, preserves all attempts and invalidates Storyboard approval. `restoredFromAttemptId` records recovery. Final Storyboard approval surfaces failed critical or visible requirements even when numerical scores are high. A person may explicitly approve a structurally complete Storyboard with those warnings; the failed reviews, selected attempts and overridden frame IDs remain durable audit evidence and part of the canonical lineage.
 
 ## Simpler creation and review — 2026-09-26
 

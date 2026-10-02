@@ -88,6 +88,7 @@ export function invalidateStory(r: Run) {
     delete r.generation.activeKeyId;
     delete r.generation.approvedKeyId;
     delete r.generation.boardApprovedAt;
+    delete r.generation.boardApproval;
     if (r.generation.board.length)
       r.generation.archivedBoards.push(r.generation.board);
     r.generation.board = [];

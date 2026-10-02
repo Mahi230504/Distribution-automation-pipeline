@@ -223,3 +223,7 @@ Official provider documentation and retrieval date are recorded in `STEP5C-DESIG
 - Use Meta's official Facebook Login Page flow for private Reels bytes: discover Page-linked professional accounts, create a resumable container, upload only to the validated `rupload.facebook.com` URI, poll status, and issue `media_publish` once. Persist session evidence so recovery never guesses after an ambiguous final write.
 - Resolve the LinkedIn member ID through `/v2/me` under `r_liteprofile`; never turn the OpenID Connect pairwise subject into a Person URN. Member publishing continues to use `w_member_social`. Organization discovery remains a separate future capability.
 - Require an explicit supported Meta Graph API version in LIVE configuration. Provider fakes remain contract evidence. A real LIVE claim requires configured provider applications, real OAuth, observed private/disposable publications and provider-side evidence.
+
+### 2026-10-02 — Explicit Storyboard review override
+
+- Automated frame review remains visible and still drives automatic repair, but it is advisory at the final human Storyboard decision. A completed Storyboard with selected, reviewed attempts can be approved only through an explicit warning acknowledgement when any selected frame still fails intent, visible checks or critical review. The exact overridden frame IDs and failed evidence remain saved and enter the canonical Storyboard lineage. Missing frames, attempts or reviews cannot be overridden.

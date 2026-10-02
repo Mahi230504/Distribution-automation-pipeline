@@ -246,6 +246,7 @@ export async function startGeneration(
         f.complete = false;
         delete f.restoredFromAttemptId;
         delete g.boardApprovedAt;
+        delete g.boardApproval;
         invalidateRelease(r, "Storyboard frame regeneration started");
       }
       r.currentStage =

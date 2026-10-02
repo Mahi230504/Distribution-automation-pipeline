@@ -638,8 +638,8 @@ export async function approveKey(id: string, keyId: string): Promise<Run> {
 export async function rejectKey(id: string): Promise<Run> {
   return realFetch(`/api/runs/${id}/key-frame/reject`, { method: "POST" });
 }
-export async function approveStoryboard(id: string): Promise<Run> {
-  return realFetch(`/api/runs/${id}/storyboard/approve`, { method: "POST" });
+export async function approveStoryboard(id: string, confirmReviewOverride = false): Promise<Run> {
+  return realFetch(`/api/runs/${id}/storyboard/approve`, { method: "POST", body: JSON.stringify({ confirmReviewOverride }) });
 }
 
 export async function repairAction(

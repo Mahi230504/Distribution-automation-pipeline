@@ -75,9 +75,13 @@ export function invalidateBoard(r: Run) {
   if (g.board.length) g.archivedBoards.push(g.board);
   g.board = [];
   delete g.boardApprovedAt;
+  delete g.boardApproval;
   r.frames = [];
   r.pack = null;
 }
+
+export function storyboardReviewWarningFrameIds(g:GenerationState){return g.board.filter(frame=>{const selected=frame.attempts.find(attempt=>attempt.id===frame.selectedAttemptId);return !!selected&&(selected.intentAudit?.passed===false||!!selected.review?.visibleChecks?.some(check=>!check.observed)||!!selected.review?.criticalFailures?.length);}).map(frame=>frame.id);}
+export function assertStoryboardReviewComplete(g:GenerationState,confirmReviewOverride:boolean){if(g.board.some(frame=>{const selected=frame.attempts.find(attempt=>attempt.id===frame.selectedAttemptId);return !selected||(!frame.isKey&&!selected.review);}))throw new Error("Finish the Storyboard review before approving it.");const failedFrameIds=storyboardReviewWarningFrameIds(g);if(failedFrameIds.length&&!confirmReviewOverride)throw new Error("This Storyboard has automated review warnings. Confirm the explicit review override to approve it without regenerating.");return failedFrameIds;}
 export function invalidateLook(r: Run) {
   const g = ensureGeneration(r);
   const key = g.keys.find((k) => k.id === g.activeKeyId);
