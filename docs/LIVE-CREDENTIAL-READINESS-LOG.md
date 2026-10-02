@@ -46,10 +46,16 @@ This log intentionally records identifiers, callback URLs, configuration names a
 
 1. Located the existing free-tier organization for `mohan.shrivastava@newtonschool.co` from the account's notification email.
 2. Located project ID `yljdwhankreidsgslbgi` and organization ID `zawgfjqnekrfeybgkbwi`.
-3. Confirmed the project is paused after inactivity and remains within Supabase's stated 90-day restoration window.
-4. Prepared the project URL `https://yljdwhankreidsgslbgi.supabase.co` in the private deployment templates.
-5. Dashboard authentication is pending. Publishable and secret keys have not been read. The project has not been restored, changed or migrated.
-6. The five ordered migrations and all five pgTAP files are present locally. None has been applied or represented as executed.
+3. Restored the paused project and waited for the dashboard to report the database online.
+4. Inspected the restored database before migration. It contained unrelated legacy tables (`battlecards`, `candidates`, `categories`, `competitor_categories`, `competitors`, and `sources`) but no conflicting VPO tables. Those tables and their data were left unchanged.
+5. Applied all five ordered VPO migrations through the live SQL editor: ownership/RLS, generalized release assets, publication state, recovery invariants and connection atomicity.
+6. Created the private `vpo-private` Storage bucket with PNG/JPEG/WebP/MP4 MIME restrictions. Supabase Free rejected the planned 100 MiB bucket setting, so the live deployment now uses the plan-compatible 50 MiB ceiling through `MEDIA_UPLOAD_MAX_BYTES=52428800`. The backend and bucket setup use the same variable.
+7. Set the Auth site URL to `https://vpo-studio.onrender.com`; allowed the exact production and localhost roots plus their `/**` variants. Email authentication and new-user sign-up are enabled; email confirmation remains disabled for controlled validation.
+8. Copied the existing publishable and secret API keys directly into the ignored mode-0600 deployment files, then cleared the clipboard. No key value was printed or committed.
+9. Enabled pgTAP and executed all five repository database tests against the live engine. All 73 assertions passed: Step 5A 18/18, Step 5B 7/7, Step 5C publication 14/14, recovery invariants 28/28 and connection atomicity 6/6. Test data and temporary grants were rolled back.
+10. Corrected two test assertions exposed by the first real-engine run: service-role privilege checks now use PostgreSQL's three-argument `has_function_privilege` inside pgTAP `ok`, and the job-secret test names the complete composite foreign key.
+11. Ran a disposable API smoke test through the stored deployment keys. A temporary confirmed user signed in with the publishable key; direct browser access to `runs` was denied; the server key uploaded and downloaded a private PNG; the browser session could not read the server-owned object. The object and user were removed in cleanup.
+12. Local verification after the deployment-limit and pgTAP corrections: backend build and 115/115 tests passed; frontend lint and production build passed; both production audits reported zero vulnerabilities; `git diff --check` passed.
 
 ### Render
 
@@ -70,9 +76,8 @@ This log intentionally records identifiers, callback URLs, configuration names a
 
 - Meta: authenticate the existing Facebook owner, create/configure a Business app, add Facebook Login, configure callbacks, attach an eligible Page-linked Instagram Professional account and request only the implemented permissions.
 - LinkedIn: authenticate the existing member, create/configure an app tied to an eligible Company Page, add Sign In with LinkedIn and Share on LinkedIn, and configure the callback.
-- Supabase: authenticate the existing account, restore the project, retrieve the current publishable/secret keys and review its Auth settings.
 - Render: apply the validated Blueprint and transfer the completed environment values during Session 11.2 deployment.
 
 ## Evidence boundary
 
-At the time of this log, Google credentials are present but Meta, LinkedIn and Supabase credentials remain incomplete. The redacted checker reports 19/27 passing. Real OAuth exchange, remote Supabase policy execution, Render deployment and real YouTube/Instagram/LinkedIn publication are **Not run**.
+At the time of this log, Google and Supabase credentials are present; Meta and LinkedIn remain incomplete. The redacted checker reports 22/27 passing. Remote Supabase schema, Auth URL, Storage and policy execution are complete. Real provider OAuth exchange, Render deployment and real YouTube/Instagram/LinkedIn publication are **Not run**.

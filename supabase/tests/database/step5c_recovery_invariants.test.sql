@@ -15,7 +15,7 @@ select isnt(has_function_privilege('authenticated','public.commit_publication_ch
 select has_function('public','consume_oauth_state',array['text','text','text','timestamp with time zone'],'atomic OAuth consume exists');
 select has_function('public','put_publication_run',array['uuid','uuid','bigint','jsonb'],'conflict-checking aggregate RPC exists');
 select has_function('public','commit_publication_checkpoint',array['uuid','uuid','uuid','uuid','bigint','jsonb','jsonb','bigint','timestamp with time zone'],'atomic checkpoint RPC exists');
-select col_is_fk('public','publication_job_secrets','run_id','job secret is tied to registered aggregate');
+select col_is_fk('public','publication_job_secrets',array['job_id','user_id','run_id'],'job secret is tied to registered aggregate');
 select throws_ok($$insert into public.publication_job_secrets(job_id,user_id,run_id,claim_id,fence,envelope) values('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000002','00000000-0000-4000-8000-000000000003','00000000-0000-4000-8000-000000000004',1,'{}')$$,'23503',null,'cross-owner/unregistered job secret is rejected');
 
 insert into auth.users(instance_id,id,aud,role,email,encrypted_password,email_confirmed_at,created_at,updated_at) values

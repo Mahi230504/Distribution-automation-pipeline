@@ -84,6 +84,7 @@ export const settings = {
   mediaProbeConcurrency: Math.max(1, Math.floor(number("MEDIA_PROBE_CONCURRENCY", 2))),
   mediaProbeStdoutBytes: Math.max(1024, Math.floor(number("MEDIA_PROBE_STDOUT_LIMIT_BYTES", 2_000_000))),
   mediaProbeStderrBytes: Math.max(1024, Math.floor(number("MEDIA_PROBE_STDERR_LIMIT_BYTES", 65536))),
+  mediaUploadMaxBytes: Math.max(1, Math.floor(number("MEDIA_UPLOAD_MAX_BYTES", 100 * 1024 * 1024))),
   packInputAllowance: number("PACK_INPUT_TOKEN_ALLOWANCE", 16000),
   packOutputAllowance: number("PACK_OUTPUT_TOKEN_ALLOWANCE", 6000),
 };
