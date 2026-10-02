@@ -112,3 +112,14 @@ Official Render, Next.js and Supabase guidance was rechecked on 2026-10-02; link
 - **Not run:** Free-plan idle cold-start timing, rollback execution, real Gemini, real provider OAuth, or live upload/publication. Procedures and remaining gates are recorded in `STEP6B-DEPLOYMENT-EVIDENCE.md`.
 
 The required rollout remains: **Supabase ownership → deployed TEST application → LIVE AI validation → LIVE provider validation**.
+
+## Session 11.2 Gate A capability hardening — 2 October 2026
+
+- **Pass:** optional provider pairs may all be absent; a complete YouTube pair remains independent of absent Meta and LinkedIn pairs.
+- **Pass:** every client-ID/client-secret half-pair is rejected in TEST or LIVE publishing; configured values receive basic whitespace/control-character structural validation.
+- **Pass:** capability output contains only provider, configured/available booleans and coarse status. Exact-value scanning found no prepared credential in tracked source or the production frontend bundle.
+- **Pass:** unavailable OAuth start returns a sanitized 503 before state persistence. Existing owner, replay and expiry coverage remains passing.
+- **Pass:** local backend build and 124/124 tests; frontend lint, 15/15 component tests and production build; both production dependency audits report zero vulnerabilities. `backend/data` remained byte-for-byte unchanged.
+- **Not run:** Gate A Render deployment and deployed-browser acceptance. These remain required before Gate B.
+- **Blocked:** Meta and LinkedIn remain absent and unavailable. No placeholder or partial pair is accepted.
+- **Not run:** LIVE Gemini, provider OAuth and external publication.

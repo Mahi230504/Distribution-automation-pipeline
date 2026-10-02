@@ -266,3 +266,11 @@ Official guidance verified 2026-10-02:
 - Treat real deployed browser acceptance as distinct evidence from component/local HTTP tests. The Stage 1 browser run proved session restoration, two-user isolation, private media, TEST provenance, responsive layout and simulated publication recovery without Gemini or provider traffic.
 - Preserve exactly-once logical publication intent and evidence across restart; do not claim exactly-once provider network execution. Render routing may hide the brief draining interval, so absence of an observed 503 is not evidence that draining did not occur.
 - Keep rollback and Free-plan cold-start as documented procedures when there is no operational reason to manufacture a defect or wait for an idle spin-down.
+
+## 2026-10-02 — Gate live providers by explicit capability
+
+- Treat each OAuth credential pair independently. Both values absent means the optional provider is unavailable; both structurally usable values present means it may be offered; a half-pair is always a startup error, including in TEST publishing.
+- Return only a boolean-safe capability projection to the authenticated frontend. Do not expose OAuth configuration, scopes, versions, validation details or authorization URLs during ordinary publication reads.
+- Gate OAuth before URL construction and state creation. Also gate new LIVE target binding and batch scheduling so a historical connection cannot become an execution path after credentials are removed. Preserve existing records and TEST job semantics.
+- Keep provider availability independent: prepared YouTube remains usable while Meta and LinkedIn are absent. Absence does not block Pack or release approval.
+- Render unavailable cards as **Not configured** with no Connect or Reconnect action. Missing or delayed capability data fails closed in the browser.

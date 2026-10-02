@@ -140,10 +140,15 @@ for (const [provider, clientId, secret] of [
   ["Meta", settings.metaClientId, settings.metaClientSecret],
   ["LinkedIn", settings.linkedinClientId, settings.linkedinClientSecret],
 ] as const)
-  if (settings.publishMode === "live" && !!clientId !== !!secret) throw new Error(`${provider} OAuth client ID and secret must be configured together for LIVE publishing.`);
-if (settings.publishMode === "live" && settings.metaClientId && !/^v\d+\.\d+$/.test(settings.metaGraphApiVersion))
+  {
+    const hasClientId = clientId.length > 0, hasSecret = secret.length > 0;
+    if (hasClientId !== hasSecret) throw new Error(`${provider} OAuth client ID and secret must be configured together.`);
+    if (hasClientId && ([clientId, secret].some(value => value !== value.trim() || /[\u0000-\u001f\u007f]/.test(value))))
+      throw new Error(`${provider} OAuth credentials are not structurally valid.`);
+  }
+if (settings.metaClientId && !/^v\d+\.\d+$/.test(settings.metaGraphApiVersion))
   throw new Error("Configured Meta OAuth requires META_GRAPH_API_VERSION such as v24.0.");
-if (settings.publishMode === "live" && settings.linkedinClientId && !/^\d{6}$/.test(settings.linkedinApiVersion))
+if (settings.linkedinClientId && !/^\d{6}$/.test(settings.linkedinApiVersion))
   throw new Error("Configured LinkedIn OAuth requires LINKEDIN_API_VERSION in YYYYMM format.");
 export function safeError(error: unknown) {
   let message = error instanceof Error ? error.message : String(error);

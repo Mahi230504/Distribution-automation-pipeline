@@ -158,3 +158,7 @@ Before LIVE AI: explicitly authorize Stage 2, retain `PUBLISH_MODE=test`, change
 Before any LIVE provider action: separately authorize Stage 3 immediately before the controlled test; complete and verify the chosen provider's credential pair, scopes, callback and account eligibility; keep unavailable providers absent; change only `PUBLISH_MODE=live`; reconnect through real OAuth; use a non-personal controlled target; and verify reconciliation/idempotency evidence. Google OAuth and YouTube upload remain unverified. Meta Page-linked Instagram Professional eligibility and LinkedIn app/product/Company Page eligibility remain unverified.
 
 Render Free can spin services down and provides no production availability guarantee. Supabase Free limits deployment media to 50 MiB. The deployed design intentionally has no persistent Render disk or Render database.
+
+## Gate A follow-up boundary
+
+Local capability hardening was completed after this Build 6B baseline. It adds a credential-free provider capability projection and prevents unavailable providers from creating OAuth state or beginning new LIVE publication work. Local verification passed; deployment and browser evidence are tracked separately in `STEP6C-LIVE-ACTIVATION.md`. Until that deployment passes, this document's Build 6B service/deploy rows remain the authoritative deployed source evidence.

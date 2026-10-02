@@ -22,6 +22,11 @@ function settingsResult(overrides:Record<string,string|undefined>={}){
   for(const [key,value] of Object.entries(overrides))if(value===undefined)delete env[key];else env[key]=value;
   return spawnSync(process.execPath,["--import","tsx","--eval","import('./src/settings.ts')"],{cwd:process.cwd(),env,encoding:"utf8"});
 }
+function capabilitiesResult(overrides:Record<string,string|undefined>={}){
+  const env:Record<string,string>={PATH:process.env.PATH??"",...production,NODE_ENV:"test",AUTH_MODE:"local",STORAGE_MODE:"local_json"};
+  for(const [key,value] of Object.entries(overrides))if(value===undefined)delete env[key];else env[key]=value;
+  return spawnSync(process.execPath,["--import","tsx","--eval","import('./src/publication-routes.ts').then(m=>console.log(JSON.stringify(m.providerCapabilities())))"],{cwd:process.cwd(),env,encoding:"utf8"});
+}
 async function freePort(){const server=net.createServer();await new Promise<void>(resolve=>server.listen(0,"127.0.0.1",resolve));const address=server.address() as net.AddressInfo;await new Promise<void>(resolve=>server.close(()=>resolve()));return address.port;}
 
 test("production configuration supports staged TEST AI and TEST publishing without optional providers",()=>{
@@ -31,10 +36,35 @@ test("production configuration supports staged TEST AI and TEST publishing witho
   assert.notEqual(settingsResult({AUTH_MODE:"local",STORAGE_MODE:"local_json"}).status,0);
   assert.notEqual(settingsResult({TEST_MODE:"false",GEMINI_API_KEY:undefined}).status,0);
   assert.equal(settingsResult({TEST_MODE:"false",GEMINI_API_KEY:"fixture-key"}).status,0);
-  assert.equal(settingsResult({GOOGLE_CLIENT_ID:"half",GOOGLE_CLIENT_SECRET:undefined}).status,0);
-  assert.notEqual(settingsResult({PUBLISH_MODE:"live",GOOGLE_CLIENT_ID:"half",GOOGLE_CLIENT_SECRET:undefined}).status,0);
+  for(const [id,secret] of [["GOOGLE_CLIENT_ID","GOOGLE_CLIENT_SECRET"],["META_CLIENT_ID","META_CLIENT_SECRET"],["LINKEDIN_CLIENT_ID","LINKEDIN_CLIENT_SECRET"]]){
+    assert.notEqual(settingsResult({[id]:"half",[secret]:undefined}).status,0);
+    assert.notEqual(settingsResult({[id]:undefined,[secret]:"half"}).status,0);
+  }
+  assert.equal(settingsResult({GOOGLE_CLIENT_ID:"google-client",GOOGLE_CLIENT_SECRET:"google-secret",META_CLIENT_ID:undefined,META_CLIENT_SECRET:undefined,LINKEDIN_CLIENT_ID:undefined,LINKEDIN_CLIENT_SECRET:undefined}).status,0);
   assert.notEqual(settingsResult({PUBLIC_FRONTEND_BASE_URL:"https://user:pass@app.example.com/path?x=1"}).status,0);
   assert.notEqual(settingsResult({PUBLIC_OAUTH_CALLBACK_BASE_URL:"http://backend.example.com"}).status,0);
+});
+
+test("provider capabilities expose only safe availability and allow independent providers",()=>{
+  const secret="CAPABILITY_SECRET_MUST_NOT_LEAK",result=capabilitiesResult({GOOGLE_CLIENT_ID:"google-client",GOOGLE_CLIENT_SECRET:secret,META_CLIENT_ID:undefined,META_CLIENT_SECRET:undefined,LINKEDIN_CLIENT_ID:undefined,LINKEDIN_CLIENT_SECRET:undefined});
+  assert.equal(result.status,0,result.stderr);const capabilities=JSON.parse(result.stdout.trim().split("\n").at(-1)!);
+  assert.deepEqual(capabilities,[
+    {provider:"youtube",configured:true,available:true,status:"available"},
+    {provider:"instagram",configured:false,available:false,status:"not_configured"},
+    {provider:"linkedin",configured:false,available:false,status:"not_configured"},
+  ]);
+  const serialized=JSON.stringify(capabilities);assert.doesNotMatch(serialized,new RegExp(secret));assert.doesNotMatch(serialized,/client|scope|version|environment|authorizationUrl/i);
+});
+
+test("unavailable OAuth fails before state persistence",async()=>{
+  const dir=await mkdtemp(`${tmpdir()}/vpo-capability-oauth-`),port=await freePort(),base=`http://127.0.0.1:${port}`,key=Buffer.alloc(32,7).toString("base64");
+  const child=spawn(process.execPath,["dist/backend/src/server.js"],{cwd:process.cwd(),env:{...process.env,NODE_ENV:"test",PORT:String(port),HOST:"127.0.0.1",TEST_MODE:"true",PUBLISH_MODE:"live",AUTH_MODE:"local",STORAGE_MODE:"local_json",STORAGE_LOCAL_PATH:dir,FRONTEND_ORIGINS:"http://localhost:3000",PUBLIC_OAUTH_CALLBACK_BASE_URL:"http://localhost:4000",PUBLIC_FRONTEND_BASE_URL:"http://localhost:3000",GOOGLE_CLIENT_ID:"google-client",GOOGLE_CLIENT_SECRET:"google-secret",META_CLIENT_ID:"",META_CLIENT_SECRET:"",LINKEDIN_CLIENT_ID:"",LINKEDIN_CLIENT_SECRET:"",PLATFORM_TOKEN_KEYS_JSON:JSON.stringify({test:key}),PLATFORM_TOKEN_ACTIVE_KEY_ID:"test"},stdio:"pipe"});
+  try{
+    for(let i=0;i<100;i++){try{if((await fetch(`${base}/api/live`)).ok)break;}catch{}await new Promise(resolve=>setTimeout(resolve,25));}
+    const response=await fetch(`${base}/api/connections/instagram/oauth/start`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({returnPath:"/runs/run-id"})});
+    assert.equal(response.status,503);assert.deepEqual(await response.json(),{error:"This publishing provider is not configured."});
+    const {readdir}=await import("node:fs/promises"),files=await readdir(dir,{recursive:true});assert.equal(files.some(name=>String(name).includes("oauth-")),false);
+  }finally{if(child.exitCode===null){const stopped=new Promise(resolve=>child.once("exit",resolve));child.kill("SIGTERM");await stopped;}await rm(dir,{recursive:true,force:true});}
 });
 
 test("readiness is read-only, cached, bounded and secret-free",async()=>{
