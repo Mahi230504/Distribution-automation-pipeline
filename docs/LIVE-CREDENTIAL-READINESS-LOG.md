@@ -120,6 +120,8 @@ The required rollout remains: **Supabase ownership → deployed TEST application
 - **Pass:** capability output contains only provider, configured/available booleans and coarse status. Exact-value scanning found no prepared credential in tracked source or the production frontend bundle.
 - **Pass:** unavailable OAuth start returns a sanitized 503 before state persistence. Existing owner, replay and expiry coverage remains passing.
 - **Pass:** local backend build and 124/124 tests; frontend lint, 15/15 component tests and production build; both production dependency audits report zero vulnerabilities. `backend/data` remained byte-for-byte unchanged.
-- **Not run:** Gate A Render deployment and deployed-browser acceptance. These remain required before Gate B.
+- **Pass:** Gate A commit `dc5d3643cf81d00b059dc3a0023b3123302bc064` was deployed to the two existing VPO services only. Backend deploy `dep-davrh17lk1mc73c9jdog` and frontend deploy `dep-davrh17lk1mc73c9jdn0` are live; liveness, readiness, TEST/test health, exact production CORS, hostile-origin denial and unauthenticated rejection passed.
+- **Pass:** the designated Supabase project contained zero OAuth-state rows after deployment; sanitized Render logs contained no Gemini/social-provider endpoint or secret pattern.
+- **Not run:** authenticated deployed-browser acceptance. The computer-control bridge could list Chrome and Safari but timed out attaching to either existing authenticated window; its isolated browser had no designated-user session. No user or session was created because this gate forbids Auth/data mutation. Gate B therefore did not start.
 - **Blocked:** Meta and LinkedIn remain absent and unavailable. No placeholder or partial pair is accepted.
-- **Not run:** LIVE Gemini, provider OAuth and external publication.
+- **Not run:** LIVE Gemini, provider OAuth and external publication. Final modes remain TEST AI and TEST publishing.

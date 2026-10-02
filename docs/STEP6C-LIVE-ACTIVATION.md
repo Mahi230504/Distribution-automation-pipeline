@@ -50,16 +50,24 @@ OAuth start checks availability before authorization URL construction or state p
 
 | Check | Result |
 |---|---|
-| Gate A source commit/push | **Not run** |
-| Backend/frontend Render deploy | **Not run** |
-| Deployed liveness/readiness/health | **Not run** |
-| Exact-origin CORS/authenticated access | **Not run** |
-| Desktop and exact 390 px browser acceptance | **Not run** |
-| Deployed OAuth-state absence for unavailable providers | **Not run** |
+| Gate A source commit/push | **Pass** — normal push of `dc5d3643cf81d00b059dc3a0023b3123302bc064`; zero commits behind; unrelated files unstaged |
+| Backend Render deploy | **Pass** — `dep-davrh17lk1mc73c9jdog`, exact Gate A source, live |
+| Frontend Render deploy | **Pass** — `dep-davrh17lk1mc73c9jdn0`, exact Gate A source, live |
+| Deployed liveness/readiness/health | **Pass** — HTTP 200; AI `test`, `testMode: true`, publishing `test` |
+| Exact-origin CORS | **Pass** — production frontend allowed; hostile origin denied 403 |
+| Unauthenticated protected access | **Pass** — HTTP 401 |
+| Authenticated capability/API access | **Not run** — no controllable designated-user session |
+| Desktop and exact 390 px browser acceptance | **Not run** — Chrome and Safari attachment timed out; isolated browser had no designated-user session |
+| Deployed OAuth-state absence | **Pass** — read-only designated-project query returned zero rows after deployment |
+| Render runtime log audit | **Pass** — no Gemini/social-provider endpoint or secret pattern in the deployment window |
+
+Render workspace `Generalist` and the existing service IDs were reconfirmed before deployment. The unrelated `media-app-builder` service was excluded. No environment value or provider credential changed.
+
+Gate A is deployed but cannot be marked complete for curriculum purposes until the authenticated desktop and exact 390 px checks confirm the capability projection in the real UI. The exact remaining browser procedure is: sign in with a designated existing test user; open an approved release with YouTube, Instagram and LinkedIn selected; verify YouTube retains its configured action; verify Instagram and LinkedIn show **Not configured** with no Connect/Reconnect action; confirm Pack, approval and one simulated TEST publication remain usable; inspect console/network for errors, Gemini/provider requests and secrets; then re-query OAuth state for zero unavailable-provider creations.
 
 ## Gate B — LIVE Gemini with TEST publishing
 
-**Not run.** It may begin only after every Gate A deployment and browser row passes. The authorized transition changes only backend `TEST_MODE=true` to `TEST_MODE=false`; `PUBLISH_MODE=test` must remain unchanged. One fictional, non-sensitive run has a strict US$1.25 application-estimated ceiling. Any failure returns only `TEST_MODE` to true.
+**Not run.** Gate A's authenticated browser rows did not run, so the prerequisite was not satisfied. `TEST_MODE` remains `true` and `PUBLISH_MODE` remains `test`. Once Gate A browser acceptance passes, the authorized transition changes only backend `TEST_MODE=true` to `TEST_MODE=false`; `PUBLISH_MODE=test` must remain unchanged. One fictional, non-sensitive run has a strict US$1.25 application-estimated ceiling. Any failure returns only `TEST_MODE` to true.
 
 Required evidence remains: exact project model availability, billing/rate-limit state, backend-only key handling, per-call provenance/cost, private-media lineage, refresh/session/owner isolation, simulated publication, provider network denial and verified cleanup.
 
