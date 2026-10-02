@@ -8,7 +8,8 @@
     "build": "tsc",
     "start": "node dist/backend/src/server.js",
     "test": "TEST_MODE=true tsx --test test/*.test.ts",
-    "supabase:storage:setup": "tsx scripts/setup-storage.ts"
+    "supabase:storage:setup": "tsx scripts/setup-storage.ts",
+    "supabase:restart:smoke": "tsx scripts/verify-supabase-restart.ts"
   },
   "dependencies": {
     "@google/genai": "latest",

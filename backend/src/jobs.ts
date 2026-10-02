@@ -19,6 +19,7 @@ import { settings } from "./settings.js";
 import { runPack } from "./pack.js";
 import { applySupersession, calculateReadiness, ensureRelease, fingerprint, invalidateRelease, prepareSupersession, RELEASE_POLICY_FINGERPRINT, storyboardLineage } from "./release.js";
 import { packContext, packProvenance, packSettingsFingerprint } from "./pack.js";
+import { isDraining, trackExecutor } from "./lifecycle.js";
 export const isBusy = (r: Run) => ["queued", "running"].includes(r.jobStatus);
 export async function recover() {
   for (const run of await storage.listRecoverableRuns())
@@ -136,9 +137,7 @@ export async function startJob(
     r.jobStatus = "queued";
     r.currentStage = "story";
   });
-  setImmediate(() => {
-    execute(ownerId, id).catch((e) => console.error(safeError(e)));
-  });
+  schedule(ownerId, id);
   return run;
 }
 
@@ -154,9 +153,12 @@ export async function startPackJob(ownerId: string, id: string, input: { quoteId
 }
 
 export function schedule(ownerId: string, id: string) {
+  if (isDraining()) return false;
   setImmediate(() => {
-    execute(ownerId, id).catch((e) => console.error(safeError(e)));
+    if (isDraining()) return;
+    void trackExecutor(execute(ownerId, id)).catch((e) => console.error(safeError(e)));
   });
+  return true;
 }
 export async function startGeneration(
   ownerId: string,

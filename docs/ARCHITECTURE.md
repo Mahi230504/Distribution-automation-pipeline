@@ -64,7 +64,9 @@ graph LR
 
 | Route | One-line purpose |
 |---|---|
-| `GET /api/health` | Reports whether the backend, its configured Gemini models, and the database (once added) are all working |
+| `GET /api/live` | Lightweight process liveness; no dependency calls |
+| `GET /api/ready` | Render routing readiness; cached, bounded, read-only Supabase checks and immediate failure while draining |
+| `GET /api/health` | Safe frontend status metadata; reuses readiness without exposing URLs, keys or dependency errors |
 | `POST /api/runs` | Starts a new run from a Brief (or an uploaded script) |
 | `GET /api/runs` | Lists the signed-in user's runs, for the History page |
 | `GET /api/runs/:id` | Fetches one run's full current state (used for polling and reopening) |
@@ -220,11 +222,11 @@ Release routes are `POST /api/runs/:id/pack-quotes`, `POST/PATCH /api/runs/:id/p
 | Secrets kept server-side | API keys only in `.env`, gitignored, never sent to the browser or logged | 1 (as a rule), enforced from 3 onward |
 | Limits and cost caps | Per-run frame/retry/regeneration limits; per-user daily run and cost limits | 3 (per-run), 7 (per-user daily) |
 | Error tracking | Real errors captured centrally (not just shown once and lost) with an error-tracking service | 7 |
-| Health checks and uptime | `/api/health` confirms backend, configured Gemini models, and database are all reachable | 3 (backend/models), 6 (full stack live) |
+| Health checks and uptime | `/api/live` proves process liveness; `/api/ready` performs bounded read-only durable-storage readiness; `/api/health` exposes safe frontend status metadata | 6 |
 | Backups | Supabase's automatic database backups relied on and confirmed enabled | 5 |
 | Free-tier limits and upgrade triggers | Render free tier: cold starts, limited monthly hours. Supabase free tier: limited database size, storage, and monthly active users (check Supabase's current published free-plan limits close to step 5/6, since providers change these). Gemini: free grounding allowance of 5,000 requests/month (checked 2026-09-24) | 6 (checked before going live), revisited at each scaling milestone (section 8) |
 | Data privacy | Users only ever see their own runs and Brand kit; no run data shared across accounts; source links only ever come from grounding metadata, never invented | 5 |
-| Model retirement handling | Model IDs are environment variables (never hardcoded); health check fails loudly if a configured model no longer exists; `docs/DECISIONS.md` tracks known retirement dates so a model can be swapped before it's shut down | 3 (mechanism), ongoing (monitoring retirement dates) |
+| Model retirement handling | Model IDs are environment variables; controlled LIVE AI validation and documented provider review detect retirement without putting slow provider calls on Render readiness | 3 (mechanism), ongoing (provider review) |
 
 
 ## Step 3 implementation contract (2026-09-25)
@@ -259,7 +261,7 @@ Each attempt is saved before calling the provider, then completed with token cou
 
 Story now consists of **three calls**: grounded research, batch review of every fact, and script generation. The earlier $0.007 Story row is a preliminary step-1 assumption, not a measured run price. Example planning allowance: 2,000/2,000 main input/output tokens across research+script, 10,000/1,000 review input/output tokens, and one search request costs $0.0285 ($0.009 main + $0.0055 review + $0.014 search). Larger retrieved pages or multiple search queries increase this. The ledger uses actual returned usage; search query count is an estimate and does not deduct account-wide free allowances. It is not a provider invoice. Test calls are always exactly $0.
 
-Health reports mode, key presence and configured model availability; test mode skips provider checks. Live model errors make health unhealthy. CORS permits only listed browser origins. The development server binds to loopback; accounts, production deployment and central error tracking remain future steps.
+Health reports only safe operating-mode metadata and readiness status. Readiness never contacts Gemini or social providers; model/provider validation belongs to configuration validation and controlled evidence, not Render's five-second traffic probe. CORS permits only configured exact origins. Production binds to `0.0.0.0` and Render's `PORT`; development binds to loopback by default.
 
 ## Step 4 implementation contract (2026-09-25)
 
@@ -414,7 +416,7 @@ Supersedes the earlier requirement for separate promotional product details and 
 
 Results and score summaries remain visible; successful detailed reviews, full prompts, model calls and activity history are expandable. Script feedback follows the script rather than preceding it. Errors and failed visible requirements remain visible, with existing recovery actions. Image elements load lazily.
 
-Active-run polling waits for the previous response before scheduling another, using 1.5 seconds when visible and 10 seconds when hidden. Health checks reuse model-availability metadata for five minutes, or ten seconds after an unhealthy result, and coalesce concurrent requests. `checkedAt` reports its verification time. Restart clears the disposable cache; no job data is stored there. Model retirement detection can therefore lag by up to five minutes. No changes to model IDs, generation quality gates, price settings, paid calls or storage format.
+Active-run polling waits for the previous response before scheduling another, using 1.5 seconds when visible and 10 seconds when hidden. Build 6A replaced provider-backed public health with a short cached, coalesced Supabase readiness probe; Gemini model availability is verified separately during controlled LIVE AI evidence, never on Render's traffic-routing path. No job data is stored in the readiness cache.
 
 ## Step 5A ownership foundation — 2026-10-01
 

@@ -579,9 +579,8 @@ export { placeholderImageUrl };
 export async function getHealth(): Promise<{
   mode: string;
   testMode: boolean;
-  keyPresent: boolean;
-  authMode: string;
-  storageMode: string;
+  publishingMode: "test" | "live";
+  status: "ready" | "not_ready";
 }> {
   return realFetch("/api/health", undefined, false);
 }

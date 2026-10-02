@@ -6,7 +6,8 @@ services:
     region: singapore
     rootDir: backend
     dockerfilePath: ./Dockerfile
-    healthCheckPath: /api/health
+    healthCheckPath: /api/ready
+    numInstances: 1
     autoDeployTrigger: commit
     envVars:
       - key: HOST
@@ -14,17 +15,27 @@ services:
       - key: NODE_ENV
         value: production
       - key: TEST_MODE
-        value: "false"
+        value: "true"
       - key: PUBLISH_MODE
-        value: live
+        value: test
       - key: AUTH_MODE
         value: supabase
       - key: STORAGE_MODE
         value: supabase
       - key: PUBLIC_OAUTH_CALLBACK_BASE_URL
         value: https://vpo-studio-backend.onrender.com
-      - key: FRONTEND_ORIGINS
+      - key: PUBLIC_FRONTEND_BASE_URL
         value: https://vpo-studio.onrender.com
+      - key: FRONTEND_ORIGINS
+        value: https://vpo-studio.onrender.com,http://localhost:3000,http://127.0.0.1:3000
+      - key: GEMINI_MODEL_MAIN
+        value: gemini-3.8-flash
+      - key: GEMINI_MODEL_SCORING
+        value: gemini-3.5-flash-lite
+      - key: GEMINI_MODEL_IMAGE
+        value: gemini-3.1-flash-image
+      - key: MEDIA_UPLOAD_MAX_BYTES
+        value: "52428800"
       - key: GEMINI_API_KEY
         sync: false
       - key: PLATFORM_TOKEN_KEYS_JSON
@@ -61,6 +72,7 @@ services:
     region: singapore
     rootDir: frontend
     dockerfilePath: ./Dockerfile
+    numInstances: 1
     autoDeployTrigger: commit
     envVars:
       - key: NEXT_PUBLIC_API_URL

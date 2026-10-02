@@ -236,3 +236,23 @@ Official provider documentation and retrieval date are recorded in `STEP5C-DESIG
 ### 2026-10-02 — Storyboard frame export
 
 - Once every Storyboard frame has a selected completed attempt, keep a frame-export action available through later release stages. The browser fetches each protected image through the authenticated owner-scoped API and creates a ZIP containing the exact selected attempts plus a safe manifest. Discarded attempts and private image URLs are not exported in the manifest.
+
+## 2026-10-02 — Session 11.2 Build 6A: production deployment contract
+
+- Keep ownership, AI and publishing modes independent. Production requires explicit valid values and durable Supabase ownership, but supports the staged sequence: Supabase ownership → deployed TEST application (`TEST_MODE=true`, `PUBLISH_MODE=test`) → LIVE AI validation (`TEST_MODE=false`) → separately authorized LIVE provider validation (`PUBLISH_MODE=live`). `NODE_ENV=production` never enables external effects.
+- Give Render `/api/ready`, not the diagnostic route. `/api/live` proves only that Node can answer; readiness performs bounded read-only Supabase queries with a 1.5-second timeout, a 10-second healthy cache and a 2-second failed cache. It does not call Gemini/providers, mutate state or disclose dependency details. `/api/health` exposes only safe mode/status metadata.
+- On termination, fail readiness and reject new mutations immediately, stop queued AI/Pack/publication executors, and guard every new irreversible provider effect. Allow already-started bounded work and safe reads to finish, persist exact outcomes, and exit within 25 seconds, below Render's 30-second default termination window. Render's configurable shutdown-delay field is unavailable on free services, so the Blueprint does not claim a custom delay. Durable claim fences and startup recovery provide exactly-once intent and evidence, not exactly-once network execution.
+- Treat the callback base and browser-return base as separate configured HTTPS origins. Provider `redirect_uri` values use the backend; post-callback navigation uses the frontend. Neither trusts request headers.
+- Build only the four public `NEXT_PUBLIC_*` values into the browser. The production build rejects absent, placeholder, non-HTTPS or path-bearing public configuration. Backend secrets never become Docker build arguments.
+- Keep `vpo-studio` and `vpo-studio-backend` and their `onrender.com` addresses as intended names/URLs until Build 6B creates or identifies those services. Build 6A validates the Blueprint but does not apply it.
+
+Official guidance verified 2026-10-02:
+
+- [Render Blueprint specification](https://render.com/docs/blueprint-spec)
+- [Render Infrastructure as Code](https://render.com/docs/infrastructure-as-code)
+- [Render health checks](https://render.com/docs/health-checks)
+- [Render environment variables](https://render.com/docs/configure-environment-variables)
+- [Render web services](https://render.com/docs/web-services)
+- [Render deploy troubleshooting](https://render.com/docs/troubleshooting-deploys)
+- [Next.js self-hosting](https://nextjs.org/docs/app/guides/self-hosting)
+- [Supabase Auth redirect URLs](https://supabase.com/docs/guides/auth/redirect-urls)

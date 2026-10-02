@@ -4,7 +4,6 @@ import { z } from "zod";
 import type { Run } from "../../frontend/lib/types.js";
 import { settings, safeError } from "./settings.js";
 import { storage } from "./storage.js";
-import { health } from "./gemini.js";
 import { recover, startJob } from "./jobs.js";
 import { parseScript } from "./script.js";
 import { generationRouter } from "./generation-routes.js";
@@ -15,8 +14,10 @@ import { releaseRouter } from "./release-routes.js";
 import { releaseReadView } from "./release.js";
 import { publicationStorage } from "./publication-storage.js";
 import { oauthCallbackRouter, publicationRouter } from "./publication-routes.js";
-import { recoverPublicationJobs } from "./publication-runner.js";
+import { beginPublicationShutdown, recoverPublicationJobs } from "./publication-runner.js";
 import { parseKeyRing } from "./token-vault.js";
+import { beginDraining, rejectsDuringDrain, requireWorkIntake, waitForExecutors } from "./lifecycle.js";
+import { readiness } from "./readiness.js";
 const platform = z.enum(["instagram_reels", "youtube_shorts", "linkedin"]);
 const brief = z.object({
   interpretation: interpretationSchema.optional(),
@@ -43,8 +44,8 @@ const brand = z.object({
   constraints: z.string().max(3000),
   preferredPlatforms: z.array(platform),
 });
-await storage.init();
 if (settings.publishMode === "live") parseKeyRing();
+await storage.init();
 await publicationStorage.init();
 await recover();
 await recoverPublicationJobs();
@@ -68,17 +69,34 @@ app.use((req, res, next) => {
   }
   next();
 });
-app.use(express.json({ limit: Math.ceil(settings.uploadBytes * 1.4) + 1024 }));
-app.use(oauthCallbackRouter);
+app.get("/api/live", (_req, res) => res.json({ status: "live" }));
+let lastReadinessFailure: string | undefined;
+app.get("/api/ready", async (_req, res) => {
+  const result = await readiness();
+  if (!result.ready && result.category !== lastReadinessFailure) {
+    lastReadinessFailure = result.category;
+    console.error(`Readiness failed: ${result.category ?? "unknown"}.`);
+  } else if (result.ready) lastReadinessFailure = undefined;
+  res.status(result.ready ? 200 : 503).json({ status: result.ready ? "ready" : "not_ready" });
+});
 app.get("/api/health", async (_req, res) => {
-  const h = await health();
-  res.status(h.healthy ? 200 : 503).json({
-    ...h,
-    authMode: settings.authMode,
-    storageMode: settings.storageMode,
-    publishMode: settings.publishMode,
+  const result = await readiness();
+  res.status(result.ready ? 200 : 503).json({
+    status: result.ready ? "ready" : "not_ready",
+    mode: settings.test ? "test" : "live",
+    testMode: settings.test,
+    publishingMode: settings.publishMode,
   });
 });
+app.use((req, res, next) => {
+  if (rejectsDuringDrain(req.method, req.path)) {
+    res.status(503).json({ error: "The service is restarting. No new work can begin; try again shortly." });
+    return;
+  }
+  next();
+});
+app.use(express.json({ limit: Math.ceil(settings.uploadBytes * 1.4) + 1024 }));
+app.use(oauthCallbackRouter);
 app.use("/api", authenticate);
 app.use(repairRouter);
 app.use(generationRouter);
@@ -92,6 +110,7 @@ app.put("/api/brand-kit", async (req, res) =>
 );
 app.get("/api/runs", async (req, res) => res.json(await storage.listRuns(owner(req))));
 app.post("/api/runs", async (req, res) => {
+  requireWorkIntake();
   const input = brief.parse(req.body),
     now = new Date().toISOString();
   const r: Run = {
@@ -152,13 +171,14 @@ app.get("/api/runs/:id/ai-calls", async (req, res) =>
   res.json((await storage.getRun(owner(req), req.params.id)).aiCallLog),
 );
 app.post("/api/runs/:id/story", async (req, res) => {
+  requireWorkIntake();
   const body = z
     .object({ fresh: z.boolean().optional() })
     .parse(req.body ?? {});
   res.status(202).json(await startJob(owner(req), req.params.id, "story", body));
 });
 app.post("/api/runs/:id/resume", async (req, res) =>
-  res.status(202).json(await startJob(owner(req), req.params.id, "story", {}, true)),
+  (requireWorkIntake(), res.status(202).json(await startJob(owner(req), req.params.id, "story", {}, true))),
 );
 app.patch("/api/runs/:id/facts", async (req, res) => {
   const body = z
@@ -196,11 +216,26 @@ const server = app.listen(settings.port, settings.host, () =>
     `VPO backend http://${settings.host}:${settings.port} (${settings.test ? "TEST MODE" : "LIVE"})`,
   ),
 );
-for (const signal of ["SIGTERM", "SIGINT"] as const)
-  process.on(signal, () => {
-    server.close(async () => {
+let shutdown: Promise<void> | undefined;
+async function stop(signal: "SIGTERM" | "SIGINT") {
+  if (shutdown) return shutdown;
+  beginDraining();
+  beginPublicationShutdown();
+  console.log(`Received ${signal}; draining without starting new external work.`);
+  shutdown = (async () => {
+    const closed = new Promise<void>((resolve) => server.close(() => resolve()));
+    const deadlineMs = 25_000;
+    const clean = await Promise.race([
+      Promise.all([closed, waitForExecutors(20_000)]).then(([, drained]) => drained),
+      new Promise<false>((resolve) => setTimeout(() => resolve(false), deadlineMs)),
+    ]);
+    if (clean) {
       await publicationStorage.close();
       await storage.close();
-      process.exit(0);
-    });
-  });
+    } else console.error("Shutdown deadline reached; persisted claims will be recovered after restart.");
+    process.exit(clean ? 0 : 1);
+  })();
+  return shutdown;
+}
+for (const signal of ["SIGTERM", "SIGINT"] as const)
+  process.on(signal, () => { void stop(signal); });

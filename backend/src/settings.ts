@@ -14,14 +14,35 @@ function number(name: string, fallback: number) {
   if (!Number.isFinite(n) || n < 0) throw new Error(`Invalid setting ${name}`);
   return n;
 }
+function boolean(name: string, fallback: boolean) {
+  const raw = process.env[name];
+  if (raw === undefined) return fallback;
+  if (raw !== "true" && raw !== "false")
+    throw new Error(`${name} must be true or false`);
+  return raw === "true";
+}
+function publicOrigin(name: string, value: string, requireHttps: boolean) {
+  let url: URL;
+  try { url = new URL(value); }
+  catch { throw new Error(`${name} must be an absolute HTTP origin.`); }
+  if (!['http:', 'https:'].includes(url.protocol) || (requireHttps && url.protocol !== 'https:') || url.username || url.password || url.pathname !== '/' || url.search || url.hash)
+    throw new Error(`${name} must be an ${requireHttps ? 'HTTPS' : 'HTTP(S)'} origin without credentials, path, query or fragment.`);
+  return url.origin;
+}
+const production = process.env.NODE_ENV === "production";
+if (production) {
+  for (const name of ["TEST_MODE", "PUBLISH_MODE", "AUTH_MODE", "STORAGE_MODE"])
+    if (process.env[name] === undefined) throw new Error(`${name} must be set explicitly in production.`);
+}
+const configuredOrigins = (process.env.FRONTEND_ORIGINS ?? "http://localhost:3000")
+  .split(",").map((value) => value.trim()).filter(Boolean)
+  .map((value) => publicOrigin("FRONTEND_ORIGINS", value, production && !/^http:\/\/(?:localhost|127\.0\.0\.1)(?::\d+)?$/.test(value)));
 export const settings = {
   port: number("PORT", 4000),
   host: process.env.HOST ?? "127.0.0.1",
-  test: process.env.TEST_MODE !== "false",
+  test: boolean("TEST_MODE", true),
   key: process.env.GEMINI_API_KEY ?? "",
-  origins: (process.env.FRONTEND_ORIGINS ?? "http://localhost:3000")
-    .split(",")
-    .map((s) => s.trim()),
+  origins: configuredOrigins,
   main: process.env.GEMINI_MODEL_MAIN ?? "gemini-3.8-flash",
   scoring: process.env.GEMINI_MODEL_SCORING ?? "gemini-3.5-flash-lite",
   image: process.env.GEMINI_MODEL_IMAGE ?? "gemini-3.1-flash-image",
@@ -44,7 +65,8 @@ export const settings = {
     "supabase",
   ]),
   publishMode: choice<PublishMode>("PUBLISH_MODE", "test", ["test", "live"]),
-  publicOAuthCallbackBaseUrl: process.env.PUBLIC_OAUTH_CALLBACK_BASE_URL ?? "http://localhost:4000",
+  publicOAuthCallbackBaseUrl: publicOrigin("PUBLIC_OAUTH_CALLBACK_BASE_URL", process.env.PUBLIC_OAUTH_CALLBACK_BASE_URL ?? "http://localhost:4000", production),
+  publicFrontendBaseUrl: publicOrigin("PUBLIC_FRONTEND_BASE_URL", process.env.PUBLIC_FRONTEND_BASE_URL ?? "http://localhost:3000", production),
   platformTokenKeysJson: process.env.PLATFORM_TOKEN_KEYS_JSON ?? "",
   platformTokenActiveKeyId: process.env.PLATFORM_TOKEN_ACTIVE_KEY_ID ?? "",
   googleClientId: process.env.GOOGLE_CLIENT_ID ?? "",
@@ -105,6 +127,24 @@ if (
   throw new Error(
     "Supabase mode requires SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY and SUPABASE_SECRET_KEY.",
   );
+if (production && (settings.authMode !== "supabase" || settings.storageMode !== "supabase"))
+  throw new Error("Production requires AUTH_MODE=supabase and STORAGE_MODE=supabase; local adapters never run as a fallback.");
+if (production && settings.host !== "0.0.0.0")
+  throw new Error("Production HOST must be 0.0.0.0.");
+if (production && !settings.origins.includes(settings.publicFrontendBaseUrl))
+  throw new Error("FRONTEND_ORIGINS must include PUBLIC_FRONTEND_BASE_URL.");
+if (production && !settings.test && !settings.key)
+  throw new Error("Production TEST_MODE=false requires GEMINI_API_KEY.");
+for (const [provider, clientId, secret] of [
+  ["Google", settings.googleClientId, settings.googleClientSecret],
+  ["Meta", settings.metaClientId, settings.metaClientSecret],
+  ["LinkedIn", settings.linkedinClientId, settings.linkedinClientSecret],
+] as const)
+  if (settings.publishMode === "live" && !!clientId !== !!secret) throw new Error(`${provider} OAuth client ID and secret must be configured together for LIVE publishing.`);
+if (settings.publishMode === "live" && settings.metaClientId && !/^v\d+\.\d+$/.test(settings.metaGraphApiVersion))
+  throw new Error("Configured Meta OAuth requires META_GRAPH_API_VERSION such as v24.0.");
+if (settings.publishMode === "live" && settings.linkedinClientId && !/^\d{6}$/.test(settings.linkedinApiVersion))
+  throw new Error("Configured LinkedIn OAuth requires LINKEDIN_API_VERSION in YYYYMM format.");
 export function safeError(error: unknown) {
   let message = error instanceof Error ? error.message : String(error);
   for (const secret of [settings.key, settings.supabaseSecretKey, settings.googleClientSecret, settings.metaClientSecret, settings.linkedinClientSecret])

@@ -5,13 +5,13 @@ Scope: Session 11.1 provider/OAuth readiness plus deployment preparation. Produc
 
 This log intentionally records identifiers, callback URLs, configuration names and verification results without recording client secrets, access tokens, refresh tokens, service-role keys or API-key values.
 
-## Fixed application endpoints
+## Intended application endpoints (not deployed evidence)
 
-- Production frontend: `https://vpo-studio.onrender.com`
-- Production backend: `https://vpo-studio-backend.onrender.com`
-- YouTube callback: `https://vpo-studio-backend.onrender.com/oauth/youtube/callback`
-- Instagram callback: `https://vpo-studio-backend.onrender.com/oauth/instagram/callback`
-- LinkedIn callback: `https://vpo-studio-backend.onrender.com/oauth/linkedin/callback`
+- Intended frontend: `https://vpo-studio.onrender.com`
+- Intended backend: `https://vpo-studio-backend.onrender.com`
+- Intended YouTube callback: `https://vpo-studio-backend.onrender.com/oauth/youtube/callback`
+- Intended Instagram callback: `https://vpo-studio-backend.onrender.com/oauth/instagram/callback`
+- Intended LinkedIn callback: `https://vpo-studio-backend.onrender.com/oauth/linkedin/callback`
 - Local callback base for controlled tests: `http://localhost:4000`
 
 ## Actions and observations
@@ -81,3 +81,19 @@ This log intentionally records identifiers, callback URLs, configuration names a
 ## Evidence boundary
 
 At the time of this log, Google and Supabase credentials are present; Meta and LinkedIn remain incomplete. The redacted checker reports 22/27 passing. Remote Supabase schema, Auth URL, Storage and policy execution are complete. Real provider OAuth exchange, Render deployment and real YouTube/Instagram/LinkedIn publication are **Not run**.
+
+## Session 11.2 Build 6A preflight — 2 October 2026
+
+- **Pass:** Render Blueprint validation without apply; two planned free web services, backend `/api/ready`, one instance, and secret-safe `sync: false` declarations. The validator rejected a custom shutdown delay on the free plan; the final Blueprint omits that unsupported field and the application exits within 25 seconds of Render's 30-second default termination window.
+- **Pass:** backend production build and 121/121 local tests; frontend lint, 13/13 component/contract tests and production build; missing/placeholder frontend public configuration fails before `next build`.
+- **Pass:** local HTTP contract for liveness/readiness/health, exact allowed/denied CORS, secret-free responses, callback origin separation, mutation draining and bounded SIGTERM exit.
+- **Pass:** the final read-only readiness probe returned ready against the designated live Supabase project; this was a direct dependency probe, not a Render deployment.
+- **Pass:** TEST publication network-denial and local restart/scheduler deduplication tests.
+- **Pass:** controlled live-Supabase restart smoke in `TEST_MODE=true` and `PUBLISH_MODE=test`. Two reconstructed executors raced one expired synthetic claim; exactly one acquired fence 2. The synthetic run, publication rows and disposable Auth user were deleted in `finally`, then every affected table and Auth were queried to verify zero remaining records. No Gemini or social-provider call occurred.
+- **Pass:** both production dependency audits reported zero vulnerabilities; `backend/data` manifest was unchanged at SHA-1 `91fe0716392577ad5523343ec8ffc1e1c434594d`; `git diff --check` passed.
+- **Pass:** redacted deployment readiness checker: core 26/26; YouTube capability ready; Instagram and LinkedIn optional/not ready.
+- **Not run:** Render Blueprint apply, Render deployment, deployed-browser E2E, real OAuth exchange, real Gemini validation, or real provider upload/publication.
+
+The required rollout remains: **Supabase ownership → deployed TEST application → LIVE AI validation → LIVE provider validation**. The intended Render names and URLs above remain proposals until Build 6B successfully creates or identifies those exact services.
+
+Official Render, Next.js and Supabase guidance was rechecked on 2026-10-02; links and resulting decisions are recorded in `STEP6A-DEPLOYMENT-CONTRACT.md` and `DECISIONS.md`.
