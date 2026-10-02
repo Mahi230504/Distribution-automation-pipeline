@@ -11,6 +11,7 @@ import { StorageConflictError, StorageNotFoundError } from "./storage-types.js";
 
 const BUCKET = "vpo-private";
 export function validStorageRange(status:number,contentRange:string|null,start:number,end:number,total:number){return status===206&&contentRange===`bytes ${start}-${end}/${total}`;}
+export function resumableUploadConfig(supabaseUrl:string,secretKey:string){return{endpoint:`${supabaseUrl.replace(/\/$/,"")}/storage/v1/upload/resumable`,headers:{authorization:`Bearer ${secretKey}`,apikey:secretKey,"x-upsert":"false"}};}
 function failure(message: string, error: { message: string } | null) {
   if (error) throw new Error(`${message}: ${error.message}`);
 }
@@ -115,12 +116,11 @@ export class SupabaseStorageAdapter implements StorageAdapter {
   }
   async saveAssetFromFile(ownerId: string, runId: string, input: SaveFileAssetInput) {
     await this.getRun(ownerId, runId); const id = randomUUID(), objectPath = `${ownerId}/${runId}/${id}.${input.extension}`;
-    const base = new URL(settings.supabaseUrl), hosted = base.hostname.endsWith(".supabase.co");
-    const endpoint = hosted ? `${base.protocol}//${base.hostname.replace(".supabase.co", ".storage.supabase.co")}/storage/v1/upload/resumable` : `${settings.supabaseUrl.replace(/\/$/, "")}/storage/v1/upload/resumable`;
+    const uploadConfig=resumableUploadConfig(settings.supabaseUrl,settings.supabaseSecretKey);
     await new Promise<void>((resolve, reject) => {
-      const upload = new Upload(createReadStream(input.filePath), { endpoint, uploadSize: input.byteSize, chunkSize: 6 * 1024 * 1024,
+      const upload = new Upload(createReadStream(input.filePath), { endpoint:uploadConfig.endpoint, uploadSize: input.byteSize, chunkSize: 6 * 1024 * 1024,
         retryDelays: [0, 1000, 3000], removeFingerprintOnSuccess: true,
-        headers: { authorization: `Bearer ${settings.supabaseSecretKey}`, "x-upsert": "false" },
+        headers: uploadConfig.headers,
         metadata: { bucketName: BUCKET, objectName: objectPath, contentType: input.mediaType ?? "video/mp4", cacheControl: "0" },
         onError: reject, onSuccess: () => resolve() }); upload.start();
     });

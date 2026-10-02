@@ -7,6 +7,7 @@ import net from "node:net";
 import { beginDraining, rejectsDuringDrain, requireProviderWrite, resetLifecycleForTest } from "../src/lifecycle.js";
 import { createReadinessProbe } from "../src/readiness.js";
 import { publicationProvenanceMatches } from "../src/publication-runner.js";
+import { resumableUploadConfig } from "../src/supabase-storage.js";
 
 const production = {
   NODE_ENV:"production", HOST:"0.0.0.0", PORT:"4000", TEST_MODE:"true", PUBLISH_MODE:"test",
@@ -56,6 +57,12 @@ test("persisted publication provenance never falls through to the other runtime 
   assert.equal(publicationProvenanceMatches("live","live"),true);
   assert.equal(publicationProvenanceMatches("live","test"),false);
   assert.equal(publicationProvenanceMatches("test","live"),false);
+});
+
+test("resumable media uploads use the project endpoint and authenticate current Supabase secret keys",()=>{
+  const config=resumableUploadConfig("https://project.supabase.co/","server-secret");
+  assert.equal(config.endpoint,"https://project.supabase.co/storage/v1/upload/resumable");
+  assert.deepEqual(config.headers,{authorization:"Bearer server-secret",apikey:"server-secret","x-upsert":"false"});
 });
 
 test("live, ready and health are safe; CORS is exact; SIGTERM exits inside the application deadline",async()=>{
