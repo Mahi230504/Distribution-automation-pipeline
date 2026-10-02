@@ -2,7 +2,7 @@
 
 Step 5B turns an approved Storyboard into an exact, durable release candidate. A release stores append-only Pack versions, explicit generation intents, accepted final-media versions, destination intent, readiness results, immutable approvals and separate supersession events inside the existing owner-scoped run snapshot. The active approval binds the current canonical Storyboard content lineage, Pack version and TEST/LIVE provenance, validation-policy fingerprint, approval epoch, media version and SHA-256, and sorted destinations. Build 5C may publish only that exact binding.
 
-The course media profile is MP4/H.264, optional AAC, displayed 1080×1920 or 720×1280, 15–60 seconds and at most 100 MiB. This is a classroom/common-publishing profile, not every platform's maximum. `ffprobe` inspects temporary bytes; filename and browser MIME are not trusted.
+The course media profile is MP4/H.264, optional AAC, displayed 1080×1920 or 720×1280 and at most 100 MiB. VPO records the detected duration but does not impose a product-level minimum or maximum; destination providers may still reject media outside their current rules during publishing. `ffprobe` inspects temporary bytes; filename and browser MIME are not trusted.
 
 YouTube title (100 characters), description (5,000 UTF-8 bytes) and combined tags (500 characters) come from official documentation. Instagram 2,200-character/30-hashtag and LinkedIn 3,000-character values are labelled classroom rules because accessible current official schema pages did not publish those numeric limits during the check.
 
