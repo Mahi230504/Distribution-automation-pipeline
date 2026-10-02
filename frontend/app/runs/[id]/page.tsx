@@ -42,6 +42,7 @@ import LookPanel from "@/components/panels/LookPanel";
 import StoryboardPanel from "@/components/panels/StoryboardPanel";
 import PackPanel from "@/components/panels/PackPanel";
 import ApprovePanel from "@/components/panels/ApprovePanel";
+import StoryboardExportButton from "@/components/StoryboardExportButton";
 
 export default function RunPage({ params }: PageProps<"/runs/[id]">) {
   const { id } = use(params);
@@ -251,6 +252,7 @@ export default function RunPage({ params }: PageProps<"/runs/[id]">) {
       {!isSampleMode() && (
         <BriefIdentity run={run} busy={busy} onAction={runAction} />
       )}
+      <StoryboardExportButton run={run} busy={busy} />
       {run.currentStage === "brief" && (
         <BriefPanel
           run={run}

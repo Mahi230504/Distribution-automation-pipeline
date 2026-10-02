@@ -232,3 +232,7 @@ Official provider documentation and retrieval date are recorded in `STEP5C-DESIG
 
 - Supply Gemini with the complete Pack JSON Schema, including all three platform-specific objects and their required fields. A generic object schema can allow a successful but unusable provider response.
 - If parsing still fails after a provider response, keep the original intent terminal and ambiguous. The recovery UI requires a fresh estimate and explicit confirmation for a new intent; it never replays the paid call whose result could not be reconciled.
+
+### 2026-10-02 — Storyboard frame export
+
+- Once every Storyboard frame has a selected completed attempt, keep a frame-export action available through later release stages. The browser fetches each protected image through the authenticated owner-scoped API and creates a ZIP containing the exact selected attempts plus a safe manifest. Discarded attempts and private image URLs are not exported in the manifest.
